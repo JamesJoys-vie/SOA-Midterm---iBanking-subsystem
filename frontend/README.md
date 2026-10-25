@@ -1,0 +1,1 @@
+# This Folder is designed for Frontend related works only
