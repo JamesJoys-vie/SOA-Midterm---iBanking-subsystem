@@ -1,0 +1,43 @@
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+actor Payer
+actor "Email System" as Mail
+actor "System Timer" as Timer
+rectangle "Tuition Payment Subsystem" {
+  usecase "Log in" as UC1
+  usecase "Sign out" as UC12
+  usecase "View profile & balance" as UC2
+  usecase "Look up tuition by MSSV" as UC3
+  usecase "Pay tuition" as UC4
+  usecase "Verify OTP" as UC5
+  usecase "Execute transaction\n(debit, mark tuition paid)" as UC6
+  usecase "Resend OTP" as UC7
+  usecase "View transaction history" as UC8
+  usecase "Resume pending payment" as UC9
+  usecase "Cancel pending payment" as UC10
+  usecase "Expire unconfirmed payment\n(release tuition hold)" as UC11
+  usecase "Refund failed payment" as UC13
+}
+Payer --> UC1
+Payer --> UC12
+Payer --> UC2
+Payer --> UC3
+Payer --> UC4
+Payer --> UC8
+Payer --> UC9
+Payer --> UC10
+UC4 ..> UC3 : <<include>>
+UC4 ..> UC5 : <<include>>
+UC4 ..> UC6 : <<include>>
+UC7 ..> UC5 : <<extend>>
+UC9 ..> UC5 : <<include>>
+UC13 ..> UC6 : <<extend>>\ntuition commit refused
+Timer --> UC11
+Mail <-- UC5 : OTP email
+Mail <-- UC6 : receipt email
+note right of UC1
+  Every use case except "Log in"
+  requires a logged-in Payer (JWT).
+end note
+@enduml

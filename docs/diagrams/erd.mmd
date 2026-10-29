@@ -1,0 +1,75 @@
+erDiagram
+  %% Matches the Alembic migrations (user 0001, tuition 0001, payment 0001 + 0002).
+  %% Three MySQL databases, one per service: users_db (USERS), tuition_db (STUDENTS, TUITIONS),
+  %% payments_db (ACCOUNTS, TRANSACTIONS, LEDGER_ENTRIES, OUTBOX_EVENTS).
+  %% Relationships labelled "logical" cross a database boundary: plain id columns, no FOREIGN KEY constraint.
+  %% OTPs live in Redis, not MySQL (see docs/design/services.md, "Redis data").
+  USERS {
+    string id PK "UUID"
+    string username UK
+    string password_hash "bcrypt"
+    string full_name
+    string phone
+    string email
+    datetime created_at
+  }
+  ACCOUNTS {
+    string id PK "UUID"
+    string user_id UK "logical ref USERS.id"
+    decimal balance "Numeric(15,2), CHECK balance >= 0"
+    int version "incremented on every balance change"
+  }
+  TRANSACTIONS {
+    string id PK "UUID"
+    string account_id FK
+    string payer_user_id "logical ref USERS.id"
+    string student_id "MSSV, copied from the tuition"
+    string tuition_id "logical ref TUITIONS.id"
+    decimal amount
+    string status "PENDING_OTP, PROCESSING, SUCCESS, FAILED, CANCELLED, EXPIRED"
+    string idempotency_key UK
+    string failure_reason "nullable"
+    datetime created_at
+    datetime expires_at "nullable, end of the OTP window"
+    datetime completed_at "nullable"
+  }
+  LEDGER_ENTRIES {
+    string id PK "UUID"
+    string account_id FK
+    string transaction_id FK "UK (transaction_id, type)"
+    string type "DEBIT or CREDIT (refund)"
+    decimal amount
+    decimal balance_after
+    datetime created_at
+  }
+  OUTBOX_EVENTS {
+    string id PK "UUID"
+    string type "payment.completed"
+    json payload "includes transaction_id"
+    bool published
+    datetime created_at
+  }
+  STUDENTS {
+    string student_id PK "MSSV"
+    string full_name
+  }
+  TUITIONS {
+    string id PK "UUID"
+    string student_id FK "UK (student_id, term)"
+    string term
+    decimal amount "CHECK amount > 0"
+    string status "UNPAID, RESERVED, PAID"
+    string reserved_by_txn "nullable, logical ref TRANSACTIONS.id"
+    datetime reserved_until "nullable, hold expiry"
+    string paid_by_txn UK "nullable, logical ref TRANSACTIONS.id"
+    int version
+  }
+
+  USERS ||--|| ACCOUNTS : "owns (logical)"
+  USERS ||--o{ TRANSACTIONS : "pays (logical)"
+  ACCOUNTS ||--o{ TRANSACTIONS : "is charged by"
+  ACCOUNTS ||--o{ LEDGER_ENTRIES : "balance history"
+  TRANSACTIONS ||--o{ LEDGER_ENTRIES : "at most 1 DEBIT + 1 CREDIT"
+  TRANSACTIONS ||--o| OUTBOX_EVENTS : "announced by (payload)"
+  STUDENTS ||--o{ TUITIONS : "has one per term"
+  TUITIONS ||--o{ TRANSACTIONS : "attempts (logical); at most 1 SUCCESS"
