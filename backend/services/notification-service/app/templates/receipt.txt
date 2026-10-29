@@ -1,0 +1,14 @@
+Hello {{ payer_name }},
+
+Your tuition payment was successful.
+
+  Transaction ID: {{ txn_id }}
+  Student:        {{ mssv }} - {{ student_name }}
+  Term:           {{ term }}
+  Amount:         {{ amount | vnd }}
+  New balance:    {{ balance_after | vnd }}
+  Completed:      {{ completed_at }}
+
+Keep this email as your receipt.
+
+iBanking

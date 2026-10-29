@@ -5,7 +5,9 @@ import pytest
 from sqlalchemy import select
 
 from app.models import Otp, OtpStatus
-from app.service import OtpError, issue_otp, utcnow, verify_otp
+from app.notifier import OtpEmail
+from app.service import OtpError, issue_otp, mask_email, send_otp, utcnow, verify_otp
+from tests.conftest import FakeNotifier
 
 def statuses(db, txn_id):
     """List the statuses of a transaction's OTPs, oldest first."""
@@ -21,9 +23,10 @@ def test_issue_creates_six_digit_code_valid_for_five_minutes(db, settings):
     assert issued.otp.code_hash != issued.code  # plain code is not stored
 
 def test_reissue_revokes_previous_otp_of_same_transaction(db, settings):
-    """Issuing again revokes the old OTP, so its code stops working."""
-    first = issue_otp(db, "txn-1", settings)
-    issue_otp(db, "txn-1", settings)
+    """Issuing again (after the cooldown) revokes the old OTP, so its code stops working."""
+    start = utcnow()
+    first = issue_otp(db, "txn-1", settings, now=start)
+    issue_otp(db, "txn-1", settings, now=start + timedelta(seconds=61))
 
     assert statuses(db, "txn-1") == ["REVOKED", "ACTIVE"]
     with pytest.raises(OtpError):
@@ -118,3 +121,58 @@ def test_unknown_transaction(db, settings):
     with pytest.raises(OtpError) as err:
         verify_otp(db, "nope", "123456", settings)
     assert err.value.code == "OTP_NOT_FOUND"
+def email():
+    """OtpEmail as built from payment-service's request (code filled in later)."""
+    return OtpEmail(to="alice@example.com", payer_name="Nguyen Van A", mssv="52100001",
+                    student_name="Pham Minh D", amount=15_000_000)
+
+def test_resend_inside_cooldown_is_refused(db, settings):
+    """A second code for the same transaction within 60 s is refused with the wait left."""
+    start = utcnow()
+    issue_otp(db, "txn-1", settings, now=start)
+
+    with pytest.raises(OtpError) as err:
+        issue_otp(db, "txn-1", settings, now=start + timedelta(seconds=18))
+    assert err.value.code == "OTP_RESEND_TOO_SOON"
+    assert err.value.retry_after == 42
+    assert statuses(db, "txn-1") == ["ACTIVE"]  # the first code still works
+
+def test_send_limit_per_transaction(db, settings):
+    """After OTP_MAX_SENDS codes, no more are issued for that transaction."""
+    start = utcnow()
+    for i in range(settings.otp_max_sends):
+        issue_otp(db, "txn-1", settings, now=start + timedelta(seconds=61 * i))
+
+    with pytest.raises(OtpError) as err:
+        issue_otp(db, "txn-1", settings, now=start + timedelta(seconds=61 * settings.otp_max_sends))
+    assert err.value.code == "OTP_RESEND_LIMIT"
+
+def test_send_otp_emails_the_code(db, settings):
+    """send_otp fills in the code and expiry and hands the email to notification-service."""
+    notifier = FakeNotifier()
+
+    sent = send_otp(db, "txn-1", email(), settings, notifier)
+
+    assert sent.sent_to == "a****@example.com"
+    assert sent.sends_left == settings.otp_max_sends - 1
+    [mail] = notifier.sent
+    assert mail.expires_in == 300
+    verify_otp(db, "txn-1", mail.code, settings)  # the emailed code is the real one
+
+def test_failed_email_removes_the_otp(db, settings):
+    """If the email can't be sent the new OTP is deleted and doesn't start a cooldown."""
+    notifier = FakeNotifier()
+    notifier.fail = True
+
+    with pytest.raises(OtpError) as err:
+        send_otp(db, "txn-1", email(), settings, notifier)
+    assert err.value.code == "EMAIL_UNAVAILABLE"
+    assert statuses(db, "txn-1") == []
+
+    notifier.fail = False
+    send_otp(db, "txn-1", email(), settings, notifier)  # retry right away is allowed
+    assert len(notifier.sent) == 1
+
+def test_mask_email():
+    """Only the first letter of the local part stays visible."""
+    assert mask_email("alice@example.com") == "a****@example.com"

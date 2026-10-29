@@ -25,8 +25,13 @@ class Settings:
     
     otp_length: int = _int("OTP_LENGTH", 6)  # Number of digits in a code.
     otp_max_attempts: int = _int("OTP_MAX_ATTEMPTS", 3)  # Wrong codes allowed before the OTP is locked.
-    
-    otp_debug_return_code: bool = _bool("OTP_DEBUG_RETURN_CODE", False)  # Dev only: return the plain code from POST /otps until email delivery exists.
+    otp_resend_cooldown_seconds: int = _int("OTP_RESEND_COOLDOWN_SECONDS", 60)  # Wait between two codes for the same transaction.
+    otp_max_sends: int = _int("OTP_MAX_SENDS", 5)  # Codes one transaction may receive in total (first send + resends).
+
+    # notification-service, which emails the code. The token is notification-service's INTERNAL_API_TOKEN.
+    notification_url: str = os.getenv("NOTIFICATION_URL", "http://localhost:8001")
+    notification_token: str = os.getenv("NOTIFICATION_TOKEN", "change-me")
+    notification_timeout_seconds: int = _int("NOTIFICATION_TIMEOUT_SECONDS", 10)
 
     # The database may start after this service (e.g. in Docker Compose):
     # how many times to try connecting at startup, and the wait between tries.
