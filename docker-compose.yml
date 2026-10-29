@@ -1,0 +1,51 @@
+name: tuition-payment
+
+x-svc-health: &svc-health
+  test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+  interval: 10s
+  timeout: 5s
+  retries: 10
+  start_period: 20s
+
+services:
+  # ---------------- infrastructure ----------------
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # Redis = OTP store (TTL keys) + event bus (Streams). AOF keeps stream events across restarts.
+    command: redis-server --appendonly yes --appendfsync everysec
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  # ---------------- microservices ----------------
+  otp-service:
+    build: { context: ./backend, args: { SERVICE_DIR: services/otp_service } }
+    restart: unless-stopped
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      OTP_TTL_SECONDS: ${OTP_TTL_SECONDS:-300}
+    depends_on:
+      redis: { condition: service_healthy }
+    healthcheck: *svc-health
+
+  notification-service:
+    build: { context: ./backend, args: { SERVICE_DIR: services/notification_service } }
+    restart: unless-stopped
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      SMTP_FROM: ${SMTP_FROM}
+    depends_on:
+      redis: { condition: service_healthy }
+    healthcheck: *svc-health
+
+volumes:
+  redis_data:
