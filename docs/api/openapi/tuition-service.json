@@ -1,0 +1,350 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Tuition Service",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/tuitions/{student_id}": {
+      "get": {
+        "summary": "Get Tuition",
+        "description": "Public (via gateway, authenticated). The student's outstanding tuition (oldest unpaid term first);\nif everything is paid, the latest PAID one so the UI can say \"already paid\".",
+        "operationId": "get_tuition_tuitions__student_id__get",
+        "parameters": [
+          {
+            "name": "student_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Student Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TuitionInfo"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Student/tuition not found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/tuitions/{tuition_id}/reserve": {
+      "post": {
+        "summary": "Reserve",
+        "description": "Hold the tuition for one transaction until reserved_until. Idempotent for the same transaction.",
+        "operationId": "reserve_internal_tuitions__tuition_id__reserve_post",
+        "parameters": [
+          {
+            "name": "tuition_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Tuition Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReserveRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TuitionInfo"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Already reserved/paid"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/tuitions/{tuition_id}/commit": {
+      "post": {
+        "summary": "Commit",
+        "description": "RESERVED(by this txn) -> PAID. Idempotent if already PAID by the same txn.\nDeliberately ignores reserved_until: once the payer's money moved, an in-flight commit must not lose to the clock.\n(Another txn can only take the hold after expiry; payment-service rejects OTPs long before that.)",
+        "operationId": "commit_internal_tuitions__tuition_id__commit_post",
+        "parameters": [
+          {
+            "name": "tuition_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Tuition Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommitRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Not reserved by this transaction"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/tuitions/{tuition_id}/release": {
+      "post": {
+        "summary": "Release",
+        "description": "RESERVED(by this txn) -> UNPAID (saga compensation). Idempotent: no-op if the hold is gone or belongs to someone else.",
+        "operationId": "release_internal_tuitions__tuition_id__release_post",
+        "parameters": [
+          {
+            "name": "tuition_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Tuition Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReserveRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": "Health",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CommitRequest": {
+        "properties": {
+          "transaction_id": {
+            "type": "string",
+            "title": "Transaction Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "transaction_id"
+        ],
+        "title": "CommitRequest"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "ReserveRequest": {
+        "properties": {
+          "transaction_id": {
+            "type": "string",
+            "title": "Transaction Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "transaction_id"
+        ],
+        "title": "ReserveRequest"
+      },
+      "TuitionInfo": {
+        "properties": {
+          "tuition_id": {
+            "type": "string",
+            "title": "Tuition Id"
+          },
+          "student_id": {
+            "type": "string",
+            "title": "Student Id"
+          },
+          "student_name": {
+            "type": "string",
+            "title": "Student Name"
+          },
+          "term": {
+            "type": "string",
+            "title": "Term"
+          },
+          "amount": {
+            "type": "string",
+            "title": "Amount"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tuition_id",
+          "student_id",
+          "student_name",
+          "term",
+          "amount",
+          "status"
+        ],
+        "title": "TuitionInfo"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}
