@@ -6,7 +6,7 @@ Internal service: only payment-service calls it, it is not routed through the ga
 ## Place in the architecture
 
 ```
-browser → gateway → payment-service ──HTTP──> otp-service ──HTTP──> notification-service ──SMTP──> Mailpit
+browser → gateway → payment-service ──HTTP──> otp-service ──HTTP──> notification-service ──SMTP──> Mailtrap
                                                     └──> otp database (own)
 ```
 
@@ -82,6 +82,6 @@ python -m venv .venv
 .venv/Scripts/python -m uvicorn app.main:app --port 8000 --reload
 ```
 
-Run notification-service on port 8001 (see its README) to receive real emails in Mailpit.
+Run notification-service on port 8001 (see its README) to see the emails in your Mailtrap inbox.
 Tests use a fake notifier and a temporary SQLite file; the service itself expects PostgreSQL
 (`DATABASE_URL`). Set `TEST_DATABASE_URL` to run the tests on PostgreSQL.
