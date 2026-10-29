@@ -20,12 +20,13 @@ class Settings:
     )
     internal_api_token: str = os.getenv("INTERNAL_API_TOKEN", "change-me")  # Token callers (otp-service, payment-service) send as X-Internal-Token.
 
-    # Outgoing mail server. Mailpit listens on 1025 with no login and no TLS.
-    smtp_host: str = os.getenv("SMTP_HOST", "localhost")
-    smtp_port: int = _int("SMTP_PORT", 1025)
-    smtp_user: str = os.getenv("SMTP_USER", "")  # empty = no login
+    # Outgoing mail server: the Mailtrap Email Testing inbox (catches every email, delivers none).
+    # Port 2525 or 587 with STARTTLS; port 465 (TLS from the first byte) is not supported.
+    smtp_host: str = os.getenv("SMTP_HOST", "sandbox.smtp.mailtrap.io")
+    smtp_port: int = _int("SMTP_PORT", 2525)
+    smtp_user: str = os.getenv("SMTP_USER", "")  # from the Mailtrap inbox's SMTP settings; empty = no login
     smtp_password: str = os.getenv("SMTP_PASSWORD", "")
-    smtp_starttls: bool = _bool("SMTP_STARTTLS", False)
+    smtp_starttls: bool = _bool("SMTP_STARTTLS", True)
     smtp_timeout_seconds: int = _int("SMTP_TIMEOUT_SECONDS", 10)
     mail_from: str = os.getenv("MAIL_FROM", "iBanking <no-reply@ibanking.local>")  # Sender shown in every email.
 

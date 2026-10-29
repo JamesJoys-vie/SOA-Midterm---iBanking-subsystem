@@ -1,4 +1,4 @@
-"""Sending mail over SMTP (Mailpit in development)."""
+"""Sending mail over SMTP (the Mailtrap testing inbox in development)."""
 import smtplib
 from email.message import EmailMessage
 from email.utils import make_msgid
