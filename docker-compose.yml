@@ -1,4 +1,7 @@
 name: tuition-payment
+# Whole system: docker compose up -d --build   ->  web http://localhost:8080 , Adminer http://localhost:8081
+# Public link (ngrok):   docker compose --profile public up -d
+# Race demo:            docker compose -f docker-compose.yml -f docker-compose.demo.yml --profile demo run --rm race-demo all
 
 x-svc-health: &svc-health
   test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
@@ -9,6 +12,27 @@ x-svc-health: &svc-health
 
 services:
   # ---------------- infrastructure ----------------
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      # read by backend/infra/mysql/01-create-databases.sh (one database + one user per service)
+      USER_DB_PASSWORD: ${USER_DB_PASSWORD}
+      TUITION_DB_PASSWORD: ${TUITION_DB_PASSWORD}
+      PAYMENT_DB_PASSWORD: ${PAYMENT_DB_PASSWORD}
+    ports:
+      - "127.0.0.1:${MYSQL_HOST_PORT:-3307}:3306"  # localhost only (for MySQL Workbench / DBeaver)
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./backend/infra/mysql:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+
   redis:
     image: redis:7-alpine
     restart: unless-stopped
@@ -22,7 +46,61 @@ services:
       timeout: 3s
       retries: 10
 
+  adminer:
+    # Web UI to look inside the three databases (server: mysql, user: root or <svc>_svc)
+    image: adminer:4
+    restart: unless-stopped
+    environment:
+      ADMINER_DEFAULT_SERVER: mysql
+    ports:
+      - "127.0.0.1:${ADMINER_HOST_PORT:-8081}:8080"
+    depends_on:
+      mysql: { condition: service_healthy }
+
   # ---------------- microservices ----------------
+  user-service:
+    # Hieu's service, built with the shared backend/Dockerfile
+    build: { context: ./backend, args: { SERVICE_DIR: services/user-service } }
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: mysql+pymysql://user_svc:${USER_DB_PASSWORD}@mysql:3306/users_db
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRE_MINUTES: ${JWT_EXPIRE_MINUTES:-30}
+    depends_on:
+      mysql: { condition: service_healthy }
+    healthcheck: *svc-health
+
+  tuition-service:
+    build: { context: ./backend, args: { SERVICE_DIR: services/tuition-service } }
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: mysql+pymysql://tuition_svc:${TUITION_DB_PASSWORD}@mysql:3306/tuition_db
+      # safety net only: payment-service releases the hold as soon as the OTP window ends
+      RESERVATION_TTL_SECONDS: ${RESERVATION_TTL_SECONDS:-600}
+    depends_on:
+      mysql: { condition: service_healthy }
+    healthcheck: *svc-health
+
+  payment-service:
+    # Binh: payment saga (sections 2 -> 4), expiry / reconcile job, outbox relay
+    build: { context: ./backend, args: { SERVICE_DIR: services/payment_service } }
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: mysql+pymysql://payment_svc:${PAYMENT_DB_PASSWORD}@mysql:3306/payments_db
+      REDIS_URL: redis://redis:6379/0
+      USER_SERVICE_URL: http://user-service:8000
+      TUITION_SERVICE_URL: http://tuition-service:8000
+      OTP_SERVICE_URL: http://otp-service:8000
+      OTP_TTL_SECONDS: ${OTP_TTL_SECONDS:-300}
+      UVICORN_WORKERS: ${PAYMENT_WORKERS:-4}  # several processes: safe, every status change is a conditional UPDATE
+    depends_on:
+      mysql: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      user-service: { condition: service_healthy }
+      tuition-service: { condition: service_healthy }
+      otp-service: { condition: service_healthy }
+    healthcheck: *svc-health
+
   otp-service:
     build: { context: ./backend, args: { SERVICE_DIR: services/otp_service } }
     restart: unless-stopped
@@ -47,5 +125,58 @@ services:
       redis: { condition: service_healthy }
     healthcheck: *svc-health
 
+  # ---------------- edge ----------------
+  gateway:
+    # Binh: single entry for /api/* (JWT check, X-User-Id, rate limit, allow-list routing)
+    build: { context: ./backend, args: { SERVICE_DIR: gateway } }
+    restart: unless-stopped
+    environment:
+      JWT_SECRET: ${JWT_SECRET}
+      REDIS_URL: redis://redis:6379/0
+      USER_SERVICE_URL: http://user-service:8000
+      TUITION_SERVICE_URL: http://tuition-service:8000
+      PAYMENT_SERVICE_URL: http://payment-service:8000
+      RATE_LIMIT_MULTIPLIER: ${RATE_LIMIT_MULTIPLIER:-1}
+    depends_on:
+      redis: { condition: service_healthy }
+      user-service: { condition: service_healthy }
+      tuition-service: { condition: service_healthy }
+      payment-service: { condition: service_healthy }
+    healthcheck: *svc-health
+
+  web:
+    # Duy's React app served by nginx; nginx forwards /api/* to the gateway
+    build: ./frontend
+    restart: unless-stopped
+    ports:
+      - "${WEB_HOST_PORT:-8080}:80"
+    depends_on:
+      gateway: { condition: service_healthy }
+
+  ngrok:
+    # Optional public HTTPS link to the web app (only with --profile public)
+    image: ngrok/ngrok:latest
+    profiles: ["public"]
+    restart: unless-stopped
+    command: ["http", "--url=${NGROK_DOMAIN}", "web:80"]
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN}
+    ports:
+      - "127.0.0.1:4040:4040"  # ngrok inspector: http://localhost:4040
+    depends_on:
+      - web
+
+  race-demo:
+    # Binh: concurrency demo of section 5 (only with --profile demo, see docker-compose.demo.yml)
+    build: { context: ./backend, args: { SERVICE_DIR: scripts } }
+    profiles: ["demo"]
+    entrypoint: ["python", "race_demo.py"]
+    environment:
+      GATEWAY_URL: http://gateway:8000
+      OTP_SERVICE_URL: http://otp-service:8000
+    depends_on:
+      gateway: { condition: service_healthy }
+
 volumes:
+  mysql_data:
   redis_data:
