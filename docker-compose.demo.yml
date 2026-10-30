@@ -1,0 +1,12 @@
+# Override for the race demo ONLY. Never use it on a real deployment.
+# It lets race_demo.py read the latest OTP of a transaction (otp-service test endpoint, see OTP_TEST_ECHO),
+# so many confirmations can be fired at the same instant without opening emails.
+#   docker compose -f docker-compose.yml -f docker-compose.demo.yml --profile demo up -d --build
+#   docker compose -f docker-compose.yml -f docker-compose.demo.yml --profile demo run --rm race-demo all
+services:
+  otp-service:
+    environment:
+      OTP_TEST_ECHO: "true"
+  gateway:
+    environment:
+      RATE_LIMIT_MULTIPLIER: "10"  # the demo fires many requests per user in a few seconds
