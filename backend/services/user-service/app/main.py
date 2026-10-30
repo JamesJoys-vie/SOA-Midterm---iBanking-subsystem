@@ -1,12 +1,16 @@
-"""Main entry point của user-service (FastAPI).
+"""Main entry point for user-service (FastAPI).
 
-Thực hiện các nhiệm vụ của Hiệu trong Task 1 và Task 2:
-- POST /login & POST /auth/login: Đăng nhập username/password, kiểm tra bcrypt, cấp JWT.
-- GET /me & GET /users/me: Thông tin người nộp tiền (họ tên, SĐT, email) và số dư tài khoản.
-- GET /accounts/me: Lấy riêng số dư khả dụng.
-- GET /history & GET /transactions: Lấy lịch sử giao dịch của người dùng.
-- GET /internal/users/{user_id}: API nội bộ cung cấp thông tin người dùng cho otp-service và payment-service.
-- POST /internal/accounts/debit: Endpoint trừ tiền có điều kiện nguyên tử, đảm bảo mỗi txn_id chỉ trừ 1 lần.
+Implements Hieu's responsibilities:
+- Task 1:
+  * POST /login & POST /auth/login: User login (bcrypt check, JWT issue).
+  * GET /me & GET /users/me: Payer profile (name, phone, email) & available balance.
+  * GET /accounts/me: Available balance inquiry.
+  * GET /history & GET /transactions: User transaction history.
+- Task 2:
+  * GET /internal/users/{user_id}: Internal API for payer contact details (OTP/receipt emails).
+- Task 4:
+  * POST /internal/accounts/debit: Atomic conditional balance deduction (balance >= amount, idempotent per txn_id).
+  * POST /internal/accounts/credit: Account refund (compensation in payment saga).
 """
 import logging
 from contextlib import asynccontextmanager
@@ -21,6 +25,8 @@ from app.config import settings
 from app.db import db_is_up, get_db, init_db
 from app.schemas import (
     AccountBalanceResponse,
+    CreditRequest,
+    CreditResponse,
     DebitRequest,
     DebitResponse,
     LoginRequest,
@@ -32,6 +38,7 @@ from app.schemas import (
 from app.security import get_current_user_id, security_bearer
 from app.service import (
     authenticate_user,
+    credit_user_account,
     debit_user_account,
     get_account_balance,
     get_transaction_history,
@@ -45,16 +52,16 @@ log = logging.getLogger("user-service")
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    """Khởi động ứng dụng: Chờ kết nối và tự động khởi tạo bảng dữ liệu nếu chưa có."""
-    log.info("user-service đang khởi động...")
+    """Application startup: Wait for database connection and initialize tables."""
+    log.info("user-service is starting up...")
     init_db()
     yield
-    log.info("user-service đang tắt...")
+    log.info("user-service is shutting down...")
 
 
 app = FastAPI(
     title="User Service - iBanking Subsystem",
-    description="Dịch vụ quản lý người dùng, đăng nhập (bcrypt + JWT), tài khoản số dư và lịch sử giao dịch",
+    description="Manages users, login (bcrypt + JWT), account balances, debit/credit and history",
     version="1.0.0",
     lifespan=lifespan,
 )
@@ -64,15 +71,15 @@ app = FastAPI(
 # HEALTHCHECK & READINESS ENDPOINTS
 # ==============================================================================
 
-@app.get("/health", tags=["Hệ thống"])
+@app.get("/health", tags=["System"])
 def health() -> dict:
-    """Liveness check: Xác nhận tiến trình service đang chạy."""
+    """Liveness check: Indicates the service process is up."""
     return {"status": "ok", "service": "user-service"}
 
 
-@app.get("/ready", tags=["Hệ thống"])
+@app.get("/ready", tags=["System"])
 def ready() -> JSONResponse:
-    """Readiness check: Xác nhận service đã kết nối thành công tới database."""
+    """Readiness check: Indicates the database connection is healthy."""
     if db_is_up():
         return JSONResponse({"status": "ready", "service": "user-service"})
     return JSONResponse(
@@ -82,60 +89,60 @@ def ready() -> JSONResponse:
 
 
 # ==============================================================================
-# TASK 1: ĐĂNG NHẬP VÀ XÁC THỰC (POST /login, POST /auth/login)
+# TASK 1: AUTHENTICATION & LOGIN (POST /login, POST /auth/login)
 # ==============================================================================
 
 @app.post(
     "/auth/login",
     response_model=TokenResponse,
-    tags=["Xác thực"],
-    summary="Đăng nhập tài khoản iBanking (chuẩn gateway)",
+    tags=["Authentication"],
+    summary="User login (Gateway standard path)",
 )
 @app.post(
     "/login",
     response_model=TokenResponse,
-    tags=["Xác thực"],
-    summary="Đăng nhập tài khoản iBanking (chuẩn trực tiếp)",
+    tags=["Authentication"],
+    summary="User login (Direct path)",
 )
 def login(body: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse:
-    """Đăng nhập bằng username và password (không có chức năng đăng ký theo đề tài).
+    """Log in with username and password.
 
-    Sử dụng bcrypt kiểm tra mật khẩu và trả về JWT Access Token (HS256) có hạn dùng 30 phút.
+    Verifies password using bcrypt and returns a signed JWT access token (HS256).
     """
     return authenticate_user(db, body.username, body.password)
 
 
 # ==============================================================================
-# TASK 1 & 2: THÔNG TIN NGƯỜI DÙNG & SỐ DƯ (GET /me, GET /users/me)
+# TASK 1 & 2: USER PROFILE & BALANCE (GET /me, GET /users/me)
 # ==============================================================================
 
 def resolve_user_id(
     auth: Optional[HTTPAuthorizationCredentials] = Depends(security_bearer),
     x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
 ) -> str:
-    """Hàm phụ trợ lấy user_id từ JWT token hoặc header X-User-Id."""
+    """Helper dependency to resolve user_id from either JWT token or X-User-Id header."""
     return get_current_user_id(auth, x_user_id)
 
 
 @app.get(
     "/me",
     response_model=UserProfile,
-    tags=["Người dùng"],
-    summary="Lấy thông tin cá nhân và số dư khả dụng",
+    tags=["User Profile"],
+    summary="Get authenticated user profile and available balance",
 )
 @app.get(
     "/users/me",
     response_model=UserProfile,
-    tags=["Người dùng"],
-    summary="Lấy thông tin cá nhân và số dư khả dụng (chuẩn gateway)",
+    tags=["User Profile"],
+    summary="Get authenticated user profile and available balance (Gateway standard)",
 )
 def get_my_profile(
     user_id: str = Depends(resolve_user_id),
     db: Session = Depends(get_db),
 ) -> UserProfile:
-    """Lấy họ tên, số điện thoại, email và số dư khả dụng của người đăng nhập.
+    """Get full name, phone number, email, and available balance for the logged-in user.
 
-    Thông tin này được giao diện nạp tự động vào mục 'Người nộp tiền' và 'Thông tin thanh toán' (chỉ đọc).
+    Used by the frontend to auto-populate readonly Payer details on the payment page.
     """
     return get_user_profile(db, user_id)
 
@@ -143,90 +150,111 @@ def get_my_profile(
 @app.get(
     "/accounts/me",
     response_model=AccountBalanceResponse,
-    tags=["Tài khoản"],
-    summary="Lấy số dư khả dụng của người dùng",
+    tags=["Account"],
+    summary="Get current account balance",
 )
 def get_my_balance(
     user_id: str = Depends(resolve_user_id),
     db: Session = Depends(get_db),
 ) -> AccountBalanceResponse:
-    """Lấy số dư khả dụng của tài khoản đăng nhập hiện tại."""
+    """Inquire the available balance for the authenticated user."""
     balance = get_account_balance(db, user_id)
     return AccountBalanceResponse(balance=balance)
 
 
 # ==============================================================================
-# TASK 1: LỊCH SỬ GIAO DỊCH (GET /history, GET /transactions)
+# TASK 1: TRANSACTION HISTORY (GET /history, GET /transactions)
 # ==============================================================================
 
 @app.get(
     "/history",
     response_model=List[TransactionHistoryItem],
-    tags=["Lịch sử giao dịch"],
-    summary="Xem lịch sử các giao dịch thanh toán",
+    tags=["Transaction History"],
+    summary="View payment transaction history",
 )
 @app.get(
     "/transactions",
     response_model=List[TransactionHistoryItem],
-    tags=["Lịch sử giao dịch"],
-    summary="Xem danh sách giao dịch thanh toán (chuẩn gateway)",
+    tags=["Transaction History"],
+    summary="View payment transaction history (Gateway standard)",
 )
 def list_history(
     user_id: str = Depends(resolve_user_id),
     limit: int = 100,
     db: Session = Depends(get_db),
 ) -> List[TransactionHistoryItem]:
-    """Lấy danh sách các giao dịch thanh toán học phí của người dùng, sắp xếp mới nhất lên đầu."""
+    """Retrieve transaction history of the authenticated user, sorted newest first."""
     return get_transaction_history(db, user_id, limit=limit)
 
 
 # ==============================================================================
-# CÁC ENDPOINT NỘI BỘ (INTERNAL API - GIAO TIẾP GIỮA CÁC MICROSERVICES)
+# INTERNAL ENDPOINTS (CALLED BY OTHER MICROSERVICES)
 # ==============================================================================
 
 @app.get(
     "/internal/users/{user_id}",
     response_model=UserProfile,
-    tags=["Nội bộ"],
-    summary="Lấy thông tin liên hệ của người nộp cho payment / notification service",
+    tags=["Internal"],
+    summary="Retrieve payer contact info for payment and notification services",
 )
 def get_user_internal(user_id: str, db: Session = Depends(get_db)) -> UserProfile:
-    """API nội bộ cho phép payment-service và otp-service lấy email và họ tên người dùng để gửi mã OTP."""
+    """Internal API for payment-service and otp-service to fetch payer details for OTP/receipt."""
     return get_user_profile(db, user_id)
 
+
+# ==============================================================================
+# TASK 4: DEBIT AND REFUND (ATOMIC, CONDITIONAL & IDEMPOTENT)
+# ==============================================================================
 
 @app.post(
     "/internal/accounts/debit",
     response_model=DebitResponse,
-    tags=["Nội bộ"],
-    summary="Trừ tiền có điều kiện (balance >= amount) và chống trùng lặp theo txn_id",
+    tags=["Internal"],
+    summary="Conditional debit (balance >= amount), idempotent per txn_id",
 )
 @app.post(
     "/accounts/debit",
     response_model=DebitResponse,
-    tags=["Nội bộ"],
-    summary="Trừ tiền tài khoản (alias)",
+    tags=["Internal"],
+    summary="Conditional debit (alias)",
 )
 def debit_account_endpoint(body: DebitRequest, db: Session = Depends(get_db)) -> DebitResponse:
-    """Endpoint trừ tiền khỏi tài khoản người nộp.
+    """Task 4: Deduct money from payer account conditionally and atomically.
 
-    - Cập nhật có điều kiện: chỉ trừ khi balance >= amount.
-    - Đảm bảo Idempotency: mỗi txn_id chỉ trừ đúng 1 lần duy nhất.
+    - Condition: Only deducts if balance >= amount.
+    - Idempotency: Each transaction_id is debited at most once.
     """
     return debit_user_account(db, body.user_id, body.amount, body.transaction_id)
 
 
 @app.post(
+    "/internal/accounts/credit",
+    response_model=CreditResponse,
+    tags=["Internal"],
+    summary="Refund account balance (saga compensation), idempotent per txn_id",
+)
+@app.post(
+    "/accounts/credit",
+    response_model=CreditResponse,
+    tags=["Internal"],
+    summary="Refund account balance (alias)",
+)
+def credit_account_endpoint(body: CreditRequest, db: Session = Depends(get_db)) -> CreditResponse:
+    """Task 4 Compensation: Refund money if a downstream step (like tuition commit) fails."""
+    return credit_user_account(db, body.user_id, body.amount, body.transaction_id)
+
+
+@app.post(
     "/internal/history",
     response_model=TransactionHistoryItem,
-    tags=["Nội bộ"],
-    summary="Ghi nhận giao dịch hoàn tất vào lịch sử người dùng",
+    tags=["Internal"],
+    summary="Record completed transaction into user history",
 )
 def record_history_endpoint(
     body: RecordHistoryRequest,
     db: Session = Depends(get_db),
 ) -> TransactionHistoryItem:
-    """API nội bộ cho phép payment-service ghi lại kết quả giao dịch vào lịch sử của người nộp."""
+    """Internal API for payment-service to record transaction outcomes in user history."""
     record = record_transaction_history(
         db,
         user_id=body.user_id,

@@ -1,64 +1,65 @@
 # tuition-service
 
-Dịch vụ tra cứu học phí và quản lý trạng thái thanh toán cho phân hệ iBanking.
-Thành viên phụ trách: **Nguyễn Đức Hiệu (524H0087)**.
+Tuition lookup and payment reservation management service for the iBanking subsystem.  
+Assigned Member: **Nguyen Duc Hieu (524H0087)**.
 
 ---
 
-## 1. Vị trí trong kiến trúc hệ thống
+## 1. System Architecture Role
 
 ```
-Trình duyệt ──> API Gateway ──> tuition-service ──> tuition database (riêng)
-                                        ^
-                                        |
-                              payment-service gọi các
-                              endpoint /internal/* để
-                              khóa / xác nhận / mở khóa
+Browser ──> API Gateway ──> tuition-service ──> tuition database (isolated)
+                                    ^
+                                    |
+                          payment-service calls
+                          /internal/* endpoints to
+                          reserve / commit / release
 ```
 
-- **Cơ sở dữ liệu độc lập**: `tuition-service` sở hữu riêng 2 bảng `students` và `tuitions`. Không service nào được truy cập trực tiếp vào DB này.
-- **Atomic Conditional Update**: Toàn bộ thao tác thay đổi trạng thái học phí đều dùng `UPDATE ... WHERE status = 'X'` một lần duy nhất. Cơ sở dữ liệu (MySQL InnoDB) tự xử lý lock ở mức hàng, đảm bảo khi 2 người cùng thanh toán cho 1 sinh viên, chỉ 1 người thắng.
-- **Idempotent**: Cùng một `transaction_id` có thể gọi `reserve` nhiều lần (gia hạn khóa) và `commit` nhiều lần (trả về PAID) mà không gây lỗi.
+- **Independent Database**: `tuition-service` exclusively owns 2 tables: `students` and `tuitions`. No other service accesses this database directly.
+- **Atomic Conditional Updates**: All status transitions (`UNPAID -> RESERVED`, `RESERVED -> PAID`, `RESERVED -> UNPAID`) are executed via single atomic `UPDATE ... WHERE status = :expected` queries. The database engine (MySQL InnoDB) handles row-level locking natively. This guarantees that when two payers attempt to pay for the same student simultaneously, exactly one succeeds while the other receives an HTTP 409 Conflict.
+- **Idempotency**: The same `transaction_id` can call `reserve` multiple times (extending the reservation TTL) and `commit` multiple times (returning `PAID`) safely without causing duplicate billing or race condition errors.
 
 ---
 
-## 2. Đáp ứng các yêu cầu trong bảng "Phân công công việc"
+## 2. Work Breakdown & Task Mapping
 
-| Mục | Yêu cầu nghiệp vụ | Triển khai trong tuition-service |
+| Item | Requirement | Implementation in tuition-service |
 |---|---|---|
-| **Task 2** | Nhập MSSV → tự động tra cứu họ tên sinh viên và số tiền | `GET /tuitions/{student_id}` và `GET /tuitions?mssv=` |
-| **Task 2** | Chỉ thanh toán toàn bộ, không thanh toán một phần | Endpoint trả về `amount` cố định của kỳ học, không cho nhập số tiền tùy ý |
-| **Task 2** | Ưu tiên kỳ cũ nhất chưa nộp trước | `ORDER BY paid_priority ASC, term ASC` |
-| **Task 2** | Khóa học phí (endpoint reserve có điều kiện) | `POST /internal/tuitions/{id}/reserve` dùng `UPDATE WHERE status='UNPAID'` |
-| **Task 4** | Mark-paid (chỉ giao dịch đang giữ khóa) | `POST /internal/tuitions/{id}/commit` dùng `UPDATE WHERE status='RESERVED' AND reserved_by_txn=txn_id` |
-| **Task 4** | Mở khóa khi hủy giao dịch | `POST /internal/tuitions/{id}/release` |
+| **Task 2** | Enter Student ID (MSSV) → automatically query full student name and tuition amount | `GET /tuitions/{student_id}` and `GET /tuitions?mssv=` |
+| **Task 2** | Full payment only; no partial payments allowed | Endpoints return fixed `amount` for the term; arbitrary payment inputs are rejected |
+| **Task 2** | Prioritize the oldest unpaid term first | Sorted by `term ASC` |
+| **Task 2** | Lock tuition (conditional reserve endpoint) | `POST /internal/tuitions/{id}/reserve` using `UPDATE WHERE status = 'UNPAID'` |
+| **Task 4** | Mark-paid (only the transaction holding the lock) | `POST /internal/tuitions/{id}/commit` using `UPDATE WHERE status = 'RESERVED' AND reserved_by_txn = :txn_id` |
+| **Task 4** | Release lock upon transaction failure/cancellation | `POST /internal/tuitions/{id}/release` using `UPDATE WHERE status = 'RESERVED' AND reserved_by_txn = :txn_id` |
 
 ---
 
-## 3. Sơ đồ trạng thái học phí
+## 3. Tuition State Machine
 
 ```
-UNPAID ──[reserve txn-A]──> RESERVED(by txn-A)
-                                │
-                    ┌───────────┴──────────────┐
+UNPAID ──[reserve txn-A]──> RESERVED (held by txn-A)
+                                 │
+                    ┌────────────┴─────────────┐
                     │                          │
-             [commit txn-A]            [release txn-A]
-                    │                  (hủy / thất bại)
+              [commit txn-A]            [release txn-A]
+                    │                  (cancel / expired)
                     ▼                          │
                   PAID                      UNPAID <──┘
 ```
 
 ---
 
-## 4. Danh sách Endpoints (API Specification)
+## 4. API Specification
 
-### 4.1. Public Endpoints (Client gọi qua API Gateway)
+### 4.1. Public Endpoints (Clients call via API Gateway)
 
-1. `GET /tuitions/{student_id}` hoặc `GET /tuitions?mssv={mssv}`
-   - **Success (200)**:
+1. `GET /tuitions/{student_id}` or `GET /tuitions?mssv={mssv}`
+   - Look up unpaid tuition for a student by Student ID (MSSV). Returns the oldest unpaid term.
+   - **Success (200 OK)**:
      ```json
      {
-       "tuition_id": "uuid-...",
+       "tuition_id": "tuition-uuid",
        "student_id": "52100001",
        "student_name": "Pham Minh D",
        "term": "2025-HK1",
@@ -66,36 +67,59 @@ UNPAID ──[reserve txn-A]──> RESERVED(by txn-A)
        "status": "UNPAID"
      }
      ```
-   - **Error (404)**: `{"detail": "Không tìm thấy sinh viên có MSSV '...'"}`
+   - **Error (404 Not Found)**:
+     ```json
+     {
+       "detail": "No student found with MSSV '52100001'"
+     }
+     ```
 
-### 4.2. Internal Endpoints (payment-service gọi trực tiếp, không qua Gateway)
+### 4.2. Internal Endpoints (Called directly by payment-service saga coordinator)
 
 2. `POST /internal/tuitions/{tuition_id}/reserve`
+   - Atomically locks tuition for this transaction (`UNPAID -> RESERVED`).
+   - If the same `transaction_id` calls `reserve` again, the reservation window is extended (idempotent).
    - **Request Body**: `{"transaction_id": "txn-uuid"}`
-   - **Success (200)**: `TuitionInfo` với `status: "RESERVED"`
-   - **Error (409)**: `{"detail": "Học phí đang được một giao dịch khác giữ khóa..."}`
+   - **Success (200 OK)**: `TuitionInfo` with `status: "RESERVED"`
+   - **Error (409 Conflict)**: Returned if already paid or currently locked by another transaction.
 
 3. `POST /internal/tuitions/{tuition_id}/commit`
+   - Marks tuition as `PAID`. Only the transaction holding the reservation lock can commit.
+   - Idempotent: repeated calls with the same `transaction_id` return 200 OK without errors.
    - **Request Body**: `{"transaction_id": "txn-uuid"}`
-   - **Success (200)**: `{"status": "PAID", "message": "..."}`
-   - **Error (409)**: Nếu học phí không được khóa bởi giao dịch này
+   - **Success (200 OK)**:
+     ```json
+     {
+       "status": "PAID",
+       "message": "Tuition payment committed successfully"
+     }
+     ```
+   - **Error (409 Conflict)**: Returned if the tuition is not in `RESERVED` state or is reserved by a different transaction.
 
 4. `POST /internal/tuitions/{tuition_id}/release`
+   - Reverts tuition status from `RESERVED` back to `UNPAID` when transaction expires or cancels.
    - **Request Body**: `{"transaction_id": "txn-uuid"}`
-   - **Success (200)**: `{"released": true/false, "message": "..."}`
+   - **Success (200 OK)**:
+     ```json
+     {
+       "released": true,
+       "message": "Tuition reservation released"
+     }
+     ```
 
 ---
 
-## 5. Kiểm thử và chạy ứng dụng
+## 5. Testing & Running
 
-### Chạy Unit Test (23 test cases):
+### Run Unit Tests (23 comprehensive test cases):
 ```bash
-pytest backend/services/tuition-service/tests -v
+python -m pytest backend/services/tuition-service/tests -v
 ```
 
-### Chạy trực tiếp service:
+### Run Service Locally:
 ```bash
 cd backend/services/tuition-service
-uvicorn app.main:app --port 8001 --reload
+uvicorn app.main:app --port 8000 --reload
 ```
-Swagger UI: http://localhost:8001/docs
+
+Swagger API Docs available at: `http://localhost:8000/docs`

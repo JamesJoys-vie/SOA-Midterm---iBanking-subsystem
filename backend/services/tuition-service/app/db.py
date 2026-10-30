@@ -1,4 +1,4 @@
-"""Quản lý kết nối cơ sở dữ liệu và phiên làm việc (Session) của tuition-service."""
+"""Database engine, session management, and startup initialization for tuition-service."""
 import logging
 import time
 from collections.abc import Iterator
@@ -11,6 +11,7 @@ from app.config import settings
 
 log = logging.getLogger("tuition-service.db")
 
+# SQLite multithreading support for FastAPI
 connect_args = {}
 if settings.database_url.startswith("sqlite"):
     connect_args["check_same_thread"] = False
@@ -25,12 +26,12 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False
 
 
 class Base(DeclarativeBase):
-    """Lớp cơ sở cho toàn bộ các model bảng dữ liệu của tuition-service."""
+    """Base declarative class for tuition-service ORM models."""
     pass
 
 
 def get_db() -> Iterator[Session]:
-    """FastAPI Dependency: Mở và đóng session database cho từng request."""
+    """FastAPI Dependency: Yields a database session per request and closes it afterwards."""
     db = SessionLocal()
     try:
         yield db
@@ -39,7 +40,7 @@ def get_db() -> Iterator[Session]:
 
 
 def db_is_up() -> bool:
-    """Kiểm tra kết nối cơ sở dữ liệu có đang hoạt động tốt hay không."""
+    """Check whether database is reachable. Used by /ready probe."""
     try:
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
@@ -49,18 +50,18 @@ def db_is_up() -> bool:
 
 
 def init_db() -> None:
-    """Tạo bảng dữ liệu nếu chưa tồn tại, có cơ chế retry chờ database sẵn sàng lúc khởi động."""
+    """Create all tables in tuition-service database, waiting for DB readiness at startup."""
     for attempt in range(1, settings.db_connect_retries + 1):
         try:
             Base.metadata.create_all(engine)
-            log.info("Khởi tạo bảng cơ sở dữ liệu tuition-service thành công")
+            log.info("Successfully initialized tuition-service database tables")
             return
         except OperationalError as exc:
             if attempt == settings.db_connect_retries:
-                log.error("Không thể kết nối đến cơ sở dữ liệu sau %d lần thử: %s", attempt, exc)
+                log.error("Failed to connect to database after %d attempts: %s", attempt, exc)
                 raise
             log.warning(
-                "Cơ sở dữ liệu chưa sẵn sàng (lần thử %d/%d), đang đợi %d giây...",
+                "Database not ready yet (attempt %d/%d), waiting %d seconds...",
                 attempt,
                 settings.db_connect_retries,
                 settings.db_connect_retry_seconds,

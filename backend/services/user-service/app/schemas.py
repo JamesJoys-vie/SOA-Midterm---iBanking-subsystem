@@ -1,4 +1,4 @@
-"""Các Pydantic schema (Data Transfer Objects) cho user-service."""
+"""Pydantic schemas (Data Transfer Objects) for user-service."""
 from datetime import datetime
 from decimal import Decimal
 from typing import Optional
@@ -7,64 +7,79 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 # ==============================================================================
-# 1. SCHEMAS CHO ĐĂNG NHẬP VÀ XÁC THỰC
+# 1. AUTHENTICATION & LOGIN SCHEMAS (Task 1)
 # ==============================================================================
 
 class LoginRequest(BaseModel):
-    """Dữ liệu client gửi lên để đăng nhập."""
-    username: str = Field(..., min_length=3, max_length=50, description="Tên đăng nhập")
-    password: str = Field(..., min_length=6, description="Mật khẩu tài khoản")
+    """Payload for user login."""
+    username: str = Field(..., min_length=3, max_length=50, description="Login username")
+    password: str = Field(..., min_length=6, description="Account password")
 
 
 class TokenResponse(BaseModel):
-    """Kết quả trả về sau khi đăng nhập thành công."""
-    access_token: str = Field(..., description="Mã JWT Bearer Token")
-    token_type: str = Field("bearer", description="Loại token")
-    expires_in: int = Field(..., description="Thời gian token còn hiệu lực (tính theo giây)")
+    """Response returned upon successful authentication."""
+    access_token: str = Field(..., description="JWT Bearer token")
+    token_type: str = Field("bearer", description="Token type")
+    expires_in: int = Field(..., description="Token TTL in seconds")
 
 
 # ==============================================================================
-# 2. SCHEMAS CHO THÔNG TIN NGƯỜI DÙNG & TÀI KHOẢN (GET /me)
+# 2. USER PROFILE & BALANCE SCHEMAS (Task 1 & Task 2)
 # ==============================================================================
 
 class UserProfile(BaseModel):
-    """Thông tin chi tiết người dùng và số dư tài khoản khả dụng."""
+    """User profile information with available balance (GET /me)."""
     model_config = ConfigDict(from_attributes=True)
 
-    id: str = Field(..., description="UUID của người dùng")
-    username: str = Field(..., description="Tên đăng nhập")
-    full_name: str = Field(..., description="Họ và tên người dùng")
-    phone: str = Field(..., description="Số điện thoại")
-    email: EmailStr = Field(..., description="Địa chỉ email nhận thông báo và OTP")
-    balance: Decimal = Field(default=Decimal("0.00"), description="Số dư khả dụng trong tài khoản (VND)")
+    id: str = Field(..., description="User unique identifier (UUID)")
+    username: str = Field(..., description="Username")
+    full_name: str = Field(..., description="Full name of the payer")
+    phone: str = Field(..., description="Phone number")
+    email: EmailStr = Field(..., description="Email address for notifications and OTP")
+    balance: Decimal = Field(default=Decimal("0.00"), description="Available account balance in VND")
 
 
 class AccountBalanceResponse(BaseModel):
-    """Số dư tài khoản (GET /accounts/me)."""
-    balance: Decimal = Field(..., description="Số dư hiện tại")
+    """Account balance response (GET /accounts/me)."""
+    balance: Decimal = Field(..., description="Current available balance in VND")
 
 
 # ==============================================================================
-# 3. SCHEMAS CHO TRỪ TIỀN (DEBIT) VÀ LỊCH SỬ GIAO DỊCH
+# 3. TASK 4: DEBIT, CREDIT (REFUND) & TRANSACTION HISTORY SCHEMAS
 # ==============================================================================
 
 class DebitRequest(BaseModel):
-    """Yêu cầu trừ tiền tài khoản từ hệ thống thanh toán."""
-    user_id: str = Field(..., description="UUID của người dùng cần trừ tiền")
-    amount: Decimal = Field(..., gt=0, description="Số tiền cần trừ (phải > 0)")
-    transaction_id: str = Field(..., min_length=1, max_length=64, description="Mã giao dịch duy nhất")
+    """Internal debit request from payment-service."""
+    user_id: str = Field(..., description="Payer UUID")
+    amount: Decimal = Field(..., gt=0, description="Amount to deduct (must be > 0)")
+    transaction_id: str = Field(..., min_length=1, max_length=64, description="Unique transaction ID")
 
 
 class DebitResponse(BaseModel):
-    """Kết quả thực hiện trừ tiền."""
+    """Response returned after account debit."""
     success: bool
     transaction_id: str
     balance_after: Decimal
-    message: str = "Trừ tiền thành công"
+    message: str = "Account debited successfully"
+
+
+class CreditRequest(BaseModel):
+    """Internal refund/credit request (compensation in saga)."""
+    user_id: str = Field(..., description="Payer UUID")
+    amount: Decimal = Field(..., gt=0, description="Amount to refund (must be > 0)")
+    transaction_id: str = Field(..., min_length=1, max_length=64, description="Unique transaction ID")
+
+
+class CreditResponse(BaseModel):
+    """Response returned after account refund/credit."""
+    success: bool
+    transaction_id: str
+    balance_after: Decimal
+    message: str = "Account refunded successfully"
 
 
 class TransactionHistoryItem(BaseModel):
-    """Thông tin một dòng giao dịch trong lịch sử."""
+    """Transaction item displayed in transaction history."""
     model_config = ConfigDict(from_attributes=True)
 
     id: str
@@ -77,7 +92,7 @@ class TransactionHistoryItem(BaseModel):
 
 
 class RecordHistoryRequest(BaseModel):
-    """Request ghi nhận lịch sử giao dịch từ payment-service."""
+    """Internal request to record transaction outcome in history."""
     user_id: str
     student_id: str
     tuition_id: Optional[str] = None

@@ -1,12 +1,11 @@
-"""
-Unit tests và API integration tests cho tuition-service (Task 2 - Nguyễn Đức Hiệu).
+"""Unit and API integration tests for tuition-service (Tasks 2 & 4 - Nguyen Duc Hieu).
 
 Test coverage:
-  - Tra cứu học phí theo MSSV (GET /tuitions/{student_id} và GET /tuitions?mssv=)
-  - Khóa học phí có điều kiện (POST /internal/tuitions/{id}/reserve)
-  - Xác nhận thanh toán (POST /internal/tuitions/{id}/commit)
-  - Mở khóa học phí (POST /internal/tuitions/{id}/release)
-  - Health/Readiness endpoints
+  - Task 2: Tuition lookup by MSSV (GET /tuitions/{student_id} and GET /tuitions?mssv=)
+  - Task 2: Conditional reservation hold (POST /internal/tuitions/{id}/reserve)
+  - Task 4: Mark-paid commit (POST /internal/tuitions/{id}/commit)
+  - Task 4: Hold release (POST /internal/tuitions/{id}/release)
+  - Health & readiness probes
 """
 from decimal import Decimal
 
@@ -15,11 +14,11 @@ from fastapi.testclient import TestClient
 
 
 # ==============================================================================
-# TEST HEALTH & READY
+# 1. HEALTH AND READINESS PROBES
 # ==============================================================================
 
 def test_health(client: TestClient):
-    """Liveness endpoint trả về status ok."""
+    """Liveness probe returns status ok."""
     res = client.get("/health")
     assert res.status_code == 200
     assert res.json()["status"] == "ok"
@@ -27,18 +26,18 @@ def test_health(client: TestClient):
 
 
 def test_ready(client: TestClient):
-    """Readiness endpoint xác nhận service kết nối được database."""
+    """Readiness probe verifies database connectivity."""
     res = client.get("/ready")
     assert res.status_code == 200
     assert res.json()["status"] == "ready"
 
 
 # ==============================================================================
-# TEST TRA CỨU HỌC PHÍ (Task 2 - Lookup Tuition)
+# 2. TASK 2: TUITION LOOKUP
 # ==============================================================================
 
 def test_lookup_tuition_by_path(client: TestClient, sample_data):
-    """GET /tuitions/{student_id}: Tra cứu học phí qua path parameter trả về đúng thông tin."""
+    """GET /tuitions/{student_id}: Path parameter lookup returns correct student and tuition data."""
     res = client.get("/tuitions/52100001")
     assert res.status_code == 200
     data = res.json()
@@ -50,7 +49,7 @@ def test_lookup_tuition_by_path(client: TestClient, sample_data):
 
 
 def test_lookup_tuition_by_query(client: TestClient, sample_data):
-    """GET /tuitions?mssv=: Tra cứu học phí qua query parameter."""
+    """GET /tuitions?mssv=: Query parameter lookup returns tuition data."""
     res = client.get("/tuitions?mssv=52100001")
     assert res.status_code == 200
     data = res.json()
@@ -59,23 +58,22 @@ def test_lookup_tuition_by_query(client: TestClient, sample_data):
 
 
 def test_lookup_tuition_case_insensitive(client: TestClient, sample_data):
-    """Tra cứu MSSV không phân biệt chữ hoa/thường (vd: 52100001 == 52100001)."""
-    # Dùng chữ thường (nếu MSSV chứa chữ)
+    """Student ID lookup is case-insensitive."""
     res = client.get("/tuitions/52100001")
     assert res.status_code == 200
 
 
 def test_lookup_tuition_student_not_found(client: TestClient, sample_data):
-    """Tra cứu MSSV không tồn tại phải trả về 404."""
+    """Lookup for an unknown student ID must return 404 Not Found."""
     res = client.get("/tuitions/INVALID_MSSV_999")
     assert res.status_code == 404
-    assert "Không tìm thấy sinh viên" in res.json()["detail"]
+    assert "Student with MSSV" in res.json()["detail"]
 
 
 def test_lookup_tuition_oldest_unpaid_first(client: TestClient, sample_data):
-    """Sinh viên có nhiều kỳ chưa đóng: phải trả về kỳ cũ nhất (FIFO) trước."""
-    # Sinh viên 522H0099 có 2024-HK2 và 2025-HK1, cả 2 đều UNPAID
-    # -> phải trả về 2024-HK2 (cũ hơn)
+    """Student with multiple unpaid terms: must return the oldest unpaid term (FIFO)."""
+    # Student 522H0099 has 2024-HK2 and 2025-HK1 (both UNPAID)
+    # -> must return 2024-HK2 first
     res = client.get("/tuitions/522H0099")
     assert res.status_code == 200
     data = res.json()
@@ -84,7 +82,7 @@ def test_lookup_tuition_oldest_unpaid_first(client: TestClient, sample_data):
 
 
 def test_lookup_tuition_all_paid_shows_latest(client: TestClient, sample_data):
-    """Tất cả học phí đã nộp: trả về kỳ mới nhất với status PAID để UI thông báo."""
+    """If all tuition terms are paid, return the latest term with status PAID."""
     res = client.get("/tuitions/52100003")
     assert res.status_code == 200
     data = res.json()
@@ -93,17 +91,17 @@ def test_lookup_tuition_all_paid_shows_latest(client: TestClient, sample_data):
 
 
 def test_lookup_tuition_no_query_param(client: TestClient, sample_data):
-    """GET /tuitions mà không cung cấp mssv phải trả về 400."""
+    """GET /tuitions without query parameter must return 400 Bad Request."""
     res = client.get("/tuitions")
     assert res.status_code in (400, 422)
 
 
 # ==============================================================================
-# TEST KHÓA HỌC PHÍ (Task 2 - Reserve Hold)
+# 3. TASK 2: CONDITIONAL RESERVATION HOLD
 # ==============================================================================
 
 def test_reserve_tuition_success(client: TestClient, sample_data):
-    """Khóa học phí UNPAID thành công: trả về TuitionInfo với status RESERVED."""
+    """Holding an UNPAID tuition succeeds and returns status RESERVED."""
     res = client.post(
         "/internal/tuitions/tuition-uuid-1/reserve",
         json={"transaction_id": "txn-abc-001"},
@@ -115,8 +113,8 @@ def test_reserve_tuition_success(client: TestClient, sample_data):
 
 
 def test_reserve_tuition_idempotent(client: TestClient, sample_data):
-    """Cùng một transaction_id gọi lại: không báo lỗi, gia hạn thời gian khóa."""
-    # Lần 1
+    """Calling reserve again with the same transaction_id extends hold without error."""
+    # First call
     res1 = client.post(
         "/internal/tuitions/tuition-uuid-1/reserve",
         json={"transaction_id": "txn-abc-idempotent"},
@@ -124,7 +122,7 @@ def test_reserve_tuition_idempotent(client: TestClient, sample_data):
     assert res1.status_code == 200
     assert res1.json()["status"] == "RESERVED"
 
-    # Lần 2 (cùng txn_id) -> phải thành công, không báo lỗi
+    # Second call (same txn_id)
     res2 = client.post(
         "/internal/tuitions/tuition-uuid-1/reserve",
         json={"transaction_id": "txn-abc-idempotent"},
@@ -134,13 +132,13 @@ def test_reserve_tuition_idempotent(client: TestClient, sample_data):
 
 
 def test_reserve_tuition_conflict_already_reserved_by_other(client: TestClient, sample_data):
-    """Học phí đang bị khóa bởi giao dịch KHÁC: phải trả về 409 Conflict."""
-    # Giao dịch A khóa trước
+    """Tuition held by ANOTHER transaction must return 409 Conflict."""
+    # Txn A reserves first
     client.post(
         "/internal/tuitions/tuition-uuid-1/reserve",
         json={"transaction_id": "txn-owner-A"},
     )
-    # Giao dịch B cố gắng khóa cùng tuition -> 409
+    # Txn B attempts to reserve same tuition -> 409
     res_b = client.post(
         "/internal/tuitions/tuition-uuid-1/reserve",
         json={"transaction_id": "txn-other-B"},
@@ -149,17 +147,17 @@ def test_reserve_tuition_conflict_already_reserved_by_other(client: TestClient, 
 
 
 def test_reserve_tuition_conflict_already_paid(client: TestClient, sample_data):
-    """Học phí đã PAID: mọi yêu cầu reserve phải trả về 409."""
+    """Attempting to reserve already PAID tuition must return 409 Conflict."""
     res = client.post(
         "/internal/tuitions/tuition-uuid-3/reserve",
         json={"transaction_id": "txn-pay-again"},
     )
     assert res.status_code == 409
-    assert "đã được thanh toán" in res.json()["detail"]
+    assert "already paid" in res.json()["detail"]
 
 
 def test_reserve_tuition_not_found(client: TestClient, sample_data):
-    """Tuition ID không tồn tại: phải trả về 404."""
+    """Attempting to reserve non-existent tuition ID returns 404."""
     res = client.post(
         "/internal/tuitions/non-existent-id/reserve",
         json={"transaction_id": "txn-xyz"},
@@ -168,18 +166,18 @@ def test_reserve_tuition_not_found(client: TestClient, sample_data):
 
 
 # ==============================================================================
-# TEST ĐÁNH DẤU ĐÃ THANH TOÁN (Commit / Mark-paid)
+# 4. TASK 4: MARK-PAID (COMMIT)
 # ==============================================================================
 
 def test_commit_tuition_success(client: TestClient, sample_data):
-    """Commit thành công: học phí chuyển từ RESERVED -> PAID."""
-    # Bước 1: Reserve trước
+    """Commit transitions status from RESERVED to PAID."""
+    # 1. Reserve first
     client.post(
         "/internal/tuitions/tuition-uuid-1/reserve",
         json={"transaction_id": "txn-commit-001"},
     )
 
-    # Bước 2: Commit
+    # 2. Commit
     res = client.post(
         "/internal/tuitions/tuition-uuid-1/commit",
         json={"transaction_id": "txn-commit-001"},
@@ -190,8 +188,7 @@ def test_commit_tuition_success(client: TestClient, sample_data):
 
 
 def test_commit_tuition_idempotent(client: TestClient, sample_data):
-    """Commit 2 lần với cùng txn_id: lần 2 phải thành công (không lỗi, Idempotency)."""
-    # Reserve + Commit lần 1
+    """Committing multiple times with same txn_id succeeds idempotently."""
     client.post(
         "/internal/tuitions/tuition-uuid-1/reserve",
         json={"transaction_id": "txn-commit-idem"},
@@ -202,7 +199,7 @@ def test_commit_tuition_idempotent(client: TestClient, sample_data):
     )
     assert res1.status_code == 200
 
-    # Commit lần 2 với cùng txn_id
+    # Repeat commit with same txn_id
     res2 = client.post(
         "/internal/tuitions/tuition-uuid-1/commit",
         json={"transaction_id": "txn-commit-idem"},
@@ -212,7 +209,7 @@ def test_commit_tuition_idempotent(client: TestClient, sample_data):
 
 
 def test_commit_tuition_without_reserve(client: TestClient, sample_data):
-    """Commit một tuition không được khóa: phải trả về 409."""
+    """Committing an unreserved tuition returns 409 Conflict."""
     res = client.post(
         "/internal/tuitions/tuition-uuid-1/commit",
         json={"transaction_id": "txn-no-reserve"},
@@ -221,13 +218,13 @@ def test_commit_tuition_without_reserve(client: TestClient, sample_data):
 
 
 def test_commit_tuition_wrong_owner(client: TestClient, sample_data):
-    """Commit bởi giao dịch KHÔNG PHẢI chủ khóa: phải trả về 409."""
-    # Reserve bởi txn-A
+    """Committing by a transaction other than the hold owner returns 409 Conflict."""
+    # Reserved by txn-A
     client.post(
         "/internal/tuitions/tuition-uuid-1/reserve",
         json={"transaction_id": "txn-real-owner"},
     )
-    # Commit bởi txn-B (khác)
+    # Txn-B tries to commit
     res = client.post(
         "/internal/tuitions/tuition-uuid-1/commit",
         json={"transaction_id": "txn-intruder"},
@@ -236,34 +233,29 @@ def test_commit_tuition_wrong_owner(client: TestClient, sample_data):
 
 
 # ==============================================================================
-# TEST MỞ KHÓA HỌC PHÍ (Release Hold)
+# 5. TASK 4: RELEASE HOLD (COMPENSATION)
 # ==============================================================================
 
 def test_release_tuition_success(client: TestClient, sample_data):
-    """Mở khóa học phí đã RESERVED bởi đúng giao dịch: trả về released=True."""
-    # Reserve trước
+    """Releasing a hold owned by caller succeeds with released=True."""
     client.post(
         "/internal/tuitions/tuition-uuid-1/reserve",
         json={"transaction_id": "txn-release-001"},
     )
-    # Release
     res = client.post(
         "/internal/tuitions/tuition-uuid-1/release",
         json={"transaction_id": "txn-release-001"},
     )
     assert res.status_code == 200
-    data = res.json()
-    assert data["released"] is True
+    assert res.json()["released"] is True
 
 
 def test_release_tuition_not_reserved_by_caller(client: TestClient, sample_data):
-    """Mở khóa học phí bởi giao dịch không giữ khóa: released=False (không có lỗi, no-op)."""
-    # Reserve bởi txn-A
+    """Releasing a hold owned by another transaction returns released=False (no error)."""
     client.post(
         "/internal/tuitions/tuition-uuid-1/reserve",
         json={"transaction_id": "txn-holder"},
     )
-    # Release bởi txn-B
     res = client.post(
         "/internal/tuitions/tuition-uuid-1/release",
         json={"transaction_id": "txn-not-holder"},
@@ -273,7 +265,7 @@ def test_release_tuition_not_reserved_by_caller(client: TestClient, sample_data)
 
 
 def test_release_tuition_unpaid_no_op(client: TestClient, sample_data):
-    """Mở khóa học phí UNPAID (không có khóa nào): released=False, không báo lỗi."""
+    """Releasing an unheld tuition is a no-op (released=False)."""
     res = client.post(
         "/internal/tuitions/tuition-uuid-1/release",
         json={"transaction_id": "txn-release-noop"},
@@ -283,15 +275,15 @@ def test_release_tuition_unpaid_no_op(client: TestClient, sample_data):
 
 
 def test_full_payment_flow(client: TestClient, sample_data):
-    """Kiểm tra toàn bộ luồng: Lookup -> Reserve -> Commit."""
-    # Bước 1: Tra cứu học phí
+    """End-to-end payment happy path: Lookup -> Reserve -> Commit."""
+    # 1. Lookup
     lookup_res = client.get("/tuitions/52100001")
     assert lookup_res.status_code == 200
     tuition = lookup_res.json()
     assert tuition["status"] == "UNPAID"
     tuition_id = tuition["tuition_id"]
 
-    # Bước 2: Khóa học phí
+    # 2. Reserve
     reserve_res = client.post(
         f"/internal/tuitions/{tuition_id}/reserve",
         json={"transaction_id": "txn-full-flow"},
@@ -299,11 +291,11 @@ def test_full_payment_flow(client: TestClient, sample_data):
     assert reserve_res.status_code == 200
     assert reserve_res.json()["status"] == "RESERVED"
 
-    # Bước 3: Lookup lại -> phải thấy RESERVED
+    # 3. Lookup again -> RESERVED
     lookup_res2 = client.get("/tuitions/52100001")
     assert lookup_res2.json()["status"] == "RESERVED"
 
-    # Bước 4: Commit -> PAID
+    # 4. Commit -> PAID
     commit_res = client.post(
         f"/internal/tuitions/{tuition_id}/commit",
         json={"transaction_id": "txn-full-flow"},
@@ -311,20 +303,20 @@ def test_full_payment_flow(client: TestClient, sample_data):
     assert commit_res.status_code == 200
     assert commit_res.json()["status"] == "PAID"
 
-    # Bước 5: Lookup lại -> phải thấy PAID
+    # 5. Lookup again -> PAID
     lookup_res3 = client.get("/tuitions/52100001")
     assert lookup_res3.json()["status"] == "PAID"
 
 
 def test_cancel_payment_flow(client: TestClient, sample_data):
-    """Kiểm tra luồng hủy: Reserve -> Release -> UNPAID lại."""
-    # Reserve
+    """End-to-end cancellation flow: Reserve -> Release -> returns to UNPAID."""
+    # 1. Reserve
     client.post(
         "/internal/tuitions/tuition-uuid-1/reserve",
         json={"transaction_id": "txn-cancel-flow"},
     )
 
-    # Release (hủy)
+    # 2. Release
     release_res = client.post(
         "/internal/tuitions/tuition-uuid-1/release",
         json={"transaction_id": "txn-cancel-flow"},
@@ -332,6 +324,6 @@ def test_cancel_payment_flow(client: TestClient, sample_data):
     assert release_res.status_code == 200
     assert release_res.json()["released"] is True
 
-    # Lookup lại -> phải về UNPAID
+    # 3. Lookup again -> UNPAID
     lookup_res = client.get("/tuitions/52100001")
     assert lookup_res.json()["status"] == "UNPAID"

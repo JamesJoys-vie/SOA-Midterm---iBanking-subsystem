@@ -1,4 +1,4 @@
-"""Quản lý kết nối cơ sở dữ liệu và phiên làm việc (Session) của user-service."""
+"""Database engine, session management, and startup initialization for user-service."""
 import logging
 import time
 from collections.abc import Iterator
@@ -11,29 +11,29 @@ from app.config import settings
 
 log = logging.getLogger("user-service.db")
 
-# Xử lý tham số kết nối: nếu dùng SQLite thì cần check_same_thread=False
+# Connection arguments: SQLite requires check_same_thread=False for multi-threaded FastAPI workers
 connect_args = {}
 if settings.database_url.startswith("sqlite"):
     connect_args["check_same_thread"] = False
 
-# Khởi tạo engine với pool_pre_ping để tự loại bỏ các kết nối hỏng
+# Database engine with connection pool pre-ping to drop dead connections
 engine = create_engine(
     settings.database_url,
     pool_pre_ping=True,
     connect_args=connect_args,
 )
 
-# Factory tạo session cho từng request (expire_on_commit=False giúp giữ dữ liệu object sau commit)
+# Request-scoped sessionmaker (expire_on_commit=False keeps models readable after commit)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
 
 class Base(DeclarativeBase):
-    """Lớp cơ sở cho toàn bộ các model bảng dữ liệu của user-service."""
+    """Base declarative class for user-service ORM models."""
     pass
 
 
 def get_db() -> Iterator[Session]:
-    """FastAPI Dependency: Cung cấp session database cho mỗi request và tự đóng sau khi kết thúc."""
+    """FastAPI Dependency: Yields a database session per request and closes it afterwards."""
     db = SessionLocal()
     try:
         yield db
@@ -42,7 +42,7 @@ def get_db() -> Iterator[Session]:
 
 
 def db_is_up() -> bool:
-    """Kiểm tra kết nối cơ sở dữ liệu có đang hoạt động tốt hay không (dùng cho /ready endpoint)."""
+    """Return True if a trivial test query succeeds. Used by the /ready healthcheck."""
     try:
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
@@ -52,18 +52,18 @@ def db_is_up() -> bool:
 
 
 def init_db() -> None:
-    """Tạo bảng dữ liệu nếu chưa tồn tại, có cơ chế retry chờ database sẵn sàng lúc khởi động."""
+    """Create all service tables, with retry logic waiting for database readiness at startup."""
     for attempt in range(1, settings.db_connect_retries + 1):
         try:
             Base.metadata.create_all(engine)
-            log.info("Khởi tạo bảng cơ sở dữ liệu user-service thành công")
+            log.info("Successfully initialized user-service database tables")
             return
         except OperationalError as exc:
             if attempt == settings.db_connect_retries:
-                log.error("Không thể kết nối đến cơ sở dữ liệu sau %d lần thử: %s", attempt, exc)
+                log.error("Failed to connect to database after %d attempts: %s", attempt, exc)
                 raise
             log.warning(
-                "Cơ sở dữ liệu chưa sẵn sàng (lần thử %d/%d), đang đợi %d giây...",
+                "Database not ready yet (attempt %d/%d), waiting %d seconds...",
                 attempt,
                 settings.db_connect_retries,
                 settings.db_connect_retry_seconds,

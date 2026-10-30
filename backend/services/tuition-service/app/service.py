@@ -1,12 +1,13 @@
-"""Tầng xử lý nghiệp vụ (Business Service Layer) cho tuition-service.
+"""Business Service Layer for tuition-service.
 
-Triển khai các yêu cầu của Task 2:
-- Tra cứu học phí theo MSSV: tự động tìm họ tên sinh viên và số tiền.
-- Quy tắc: Trả về toàn bộ số tiền học phí (không thanh toán một phần).
-- Khóa học phí (Reserve/Hold) bằng câu lệnh UPDATE có điều kiện nguyên tử (Atomic Conditional Update)
-  để phòng tránh Race Condition khi có 2 người cùng nộp học phí cho một sinh viên.
-- Đánh dấu đã thanh toán (mark-paid / commit): Chỉ giao dịch đang giữ khóa mới được commit sang PAID.
-- Mở khóa (Release): Nhả trạng thái về UNPAID khi giao dịch bị hủy hoặc thất bại.
+Implements Task 2 and Task 4 responsibilities:
+- Task 2:
+  * Tuition lookup by MSSV: student name and full tuition amount (no partial payment).
+  * Oldest unpaid term offered first (FIFO).
+  * Atomic conditional reservation hold (reserve) to prevent race conditions.
+- Task 4:
+  * Mark-paid commit: only the transaction holding the active hold can transition to PAID.
+  * Hold release: releases hold back to UNPAID if payment fails or is cancelled.
 """
 import logging
 from datetime import timedelta
@@ -22,39 +23,40 @@ from app.schemas import CommitResponse, ReleaseResponse, TuitionInfo
 log = logging.getLogger("tuition-service.service")
 
 
-def lookup_tuition(db: Session, mssv: str) -> TuitionInfo:
-    """Tra cứu thông tin học phí của sinh viên theo MSSV.
+# ==============================================================================
+# TASK 2: TUITION LOOKUP
+# ==============================================================================
 
-    Quy tắc nghiệp vụ:
-    1. So khớp MSSV không phân biệt chữ hoa / thường (ví dụ: 521h0081 khớp với 521H0081).
-    2. Ưu tiên học kỳ chưa thanh toán (UNPAID) cũ nhất trước.
-    3. Nếu học phí đang bị giữ khóa (RESERVED) nhưng đã quá hạn (reserved_until < now),
-       hệ thống tự động hiển thị trạng thái là UNPAID để người dùng có thể tiếp tục thanh toán.
-    4. Nếu tất cả các kỳ đều đã thanh toán, trả về học kỳ gần nhất với trạng thái PAID
-       để giao diện thông báo 'học phí đã được thanh toán toàn bộ'.
-    5. Luôn trả về toàn bộ số tiền học phí (không có tính năng nộp một phần).
+def lookup_tuition(db: Session, mssv: str) -> TuitionInfo:
+    """Look up tuition liability for a student by MSSV.
+
+    Business rules:
+    1. Case-insensitive lookup on student_id (e.g. '521h0081' matches '521H0081').
+    2. Offers the oldest unpaid term first (FIFO).
+    3. If a tuition hold is past reserved_until, it is displayed as UNPAID so the user can pay.
+    4. If every term is paid, returns the most recent PAID term so the UI can notify the user.
+    5. Always returns the full tuition amount; partial payments are strictly disallowed.
     """
     clean_mssv = mssv.strip().upper()
     if not clean_mssv:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Mã số sinh viên (MSSV) không được để trống",
+            detail="Student ID (MSSV) must not be empty",
         )
 
-    # 1. Tìm thông tin sinh viên
+    # 1. Query student record
     student = db.scalar(
         select(Student).where(func.upper(Student.student_id) == clean_mssv)
     )
     if not student:
-        log.warning("Không tìm thấy sinh viên có MSSV='%s'", clean_mssv)
+        log.warning("Student not found for MSSV='%s'", clean_mssv)
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Không tìm thấy sinh viên có MSSV '{clean_mssv}'",
+            detail=f"Student with MSSV '{clean_mssv}' not found",
         )
 
-    # 2. Tìm danh sách học phí của sinh viên này
+    # 2. Query tuition liabilities: UNPAID/RESERVED prioritized over PAID, ascending by term
     now = utcnow()
-    # Ưu tiên các kỳ chưa PAID xếp trước, sắp xếp kỳ học tăng dần (kỳ cũ trước)
     paid_priority = case((Tuition.status == PAID, 1), else_=0)
     tuition = db.scalars(
         select(Tuition)
@@ -65,10 +67,10 @@ def lookup_tuition(db: Session, mssv: str) -> TuitionInfo:
     if not tuition:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Sinh viên '{student.full_name}' ({student.student_id}) không có dữ liệu học phí",
+            detail=f"No tuition liabilities found for student '{student.full_name}' ({student.student_id})",
         )
 
-    # Nếu tất cả các kỳ đều đã PAID -> lấy kỳ mới nhất để hiển thị
+    # If all terms are paid, pick the newest term to show completion
     if tuition.status == PAID:
         tuition = db.scalars(
             select(Tuition)
@@ -76,10 +78,9 @@ def lookup_tuition(db: Session, mssv: str) -> TuitionInfo:
             .order_by(Tuition.term.desc())
         ).first()
 
-    # 3. Xác định trạng thái hiển thị
+    # 3. Determine display status (handle stale hold past reserved_until)
     display_status = tuition.status
     if display_status == RESERVED and tuition.reserved_until and tuition.reserved_until < now:
-        # Khóa đã quá hạn -> Xem như UNPAID để người nộp có thể thanh toán tiếp
         display_status = UNPAID
 
     return TuitionInfo(
@@ -92,25 +93,28 @@ def lookup_tuition(db: Session, mssv: str) -> TuitionInfo:
     )
 
 
+# ==============================================================================
+# TASK 2: CONDITIONAL RESERVATION HOLD
+# ==============================================================================
+
 def reserve_tuition(
     db: Session,
     tuition_id: str,
     transaction_id: str,
 ) -> TuitionInfo:
-    """Khóa giữ chỗ học phí (Reserve/Hold) cho một giao dịch đang thực hiện.
+    """Hold a tuition liability for a specific transaction (UNPAID -> RESERVED).
 
-    Sử dụng câu lệnh UPDATE có điều kiện nguyên tử (Atomic Conditional Update)
-    ở mức Database Engine. Cơ chế này đảm bảo khi có nhiều giao dịch cùng tranh chấp
-    thanh toán cho 1 học phí, chỉ duy nhất 1 giao dịch thành công (rowcount == 1).
-    Giao dịch còn lại sẽ thấy rowcount == 0 và bị từ chối với mã lỗi 409 Conflict.
+    Uses an atomic conditional UPDATE at the database engine level.
+    When two concurrent payments race for the same student tuition:
+    - Exactly one UPDATE succeeds (rowcount == 1).
+    - The losing transaction gets rowcount == 0 and is rejected with 409 Conflict.
 
-    Tính Idempotent: Nếu cùng một transaction_id gọi lại (ví dụ khi gửi lại mã OTP),
-    lệnh sẽ tự động gia hạn thời gian giữ chỗ mà không báo lỗi.
+    Idempotent: Re-calling with the same transaction_id extends the hold.
     """
     now = utcnow()
     expiry = now + timedelta(seconds=settings.reservation_ttl_seconds)
 
-    # Câu lệnh cập nhật có điều kiện nguyên tử
+    # Atomic conditional update
     res = db.execute(
         update(Tuition)
         .where(
@@ -120,8 +124,8 @@ def reserve_tuition(
                 and_(
                     Tuition.status == RESERVED,
                     or_(
-                        Tuition.reserved_until < now,       # Khóa cũ của giao dịch khác đã hết hạn
-                        Tuition.reserved_by_txn == transaction_id,  # Cùng giao dịch gọi lại (gia hạn)
+                        Tuition.reserved_until < now,                   # Stale hold from another transaction
+                        Tuition.reserved_by_txn == transaction_id,      # Same transaction extending hold
                     ),
                 ),
             ),
@@ -140,27 +144,27 @@ def reserve_tuition(
     if not tuition:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Không tìm thấy khoản học phí",
+            detail="Tuition liability not found",
         )
 
-    # Nếu rowcount == 0: Không khóa được vì điều kiện WHERE không khớp
+    # If rowcount == 0: Lost the race or already locked/paid
     if res.rowcount != 1:
         if tuition.status == PAID:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Khoản học phí này đã được thanh toán",
+                detail="Tuition for this student is already paid",
             )
         else:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Học phí đang được một giao dịch khác giữ khóa để thanh toán",
+                detail="Tuition is being paid by another transaction",
             )
 
     student = db.get(Student, tuition.student_id)
     student_name = student.full_name if student else "N/A"
 
     log.info(
-        "Khóa học phí thành công: tuition_id=%s, txn_id=%s, hạn khóa đến: %s",
+        "Tuition reserved successfully: tuition_id=%s, txn_id=%s, expires_at=%s",
         tuition_id,
         transaction_id,
         expiry,
@@ -176,32 +180,36 @@ def reserve_tuition(
     )
 
 
+# ==============================================================================
+# TASK 4: MARK-PAID (COMMIT) & SAGA COMPENSATION (RELEASE)
+# ==============================================================================
+
 def commit_tuition(
     db: Session,
     tuition_id: str,
     transaction_id: str,
 ) -> CommitResponse:
-    """Đánh dấu học phí đã được thanh toán thành công (Mark-paid).
+    """Mark tuition as paid (mark-paid): RESERVED -> PAID.
 
-    Quy tắc an toàn:
-    - Chỉ giao dịch đang giữ khóa (status='RESERVED' AND reserved_by_txn=transaction_id)
-      mới được phép chuyển trạng thái học phí sang 'PAID'.
-    - Khi chuyển sang PAID, xóa thông tin reserved_until và lưu paid_by_txn.
-    - Idempotent: Nếu đã PAID bởi cùng transaction_id này, trả về thành công mà không gây lỗi.
+    Safety & consistency rules (Task 4):
+    - ONLY the transaction currently holding the reservation
+      (status == 'RESERVED' AND reserved_by_txn == transaction_id)
+      is authorized to commit the status to PAID.
+    - Clears reserved_until and records paid_by_txn.
+    - Idempotent: If already PAID by this exact transaction_id, return success.
     """
-    # Kiểm tra Idempotency TRƯỚC: Nếu đã PAID bởi chính transaction_id này thì trả về luôn
-    # (Không cần chạy UPDATE nữa, tránh lỗi khi gọi lại sau khi đã commit)
+    # 1. Pre-check idempotency: already paid by this transaction?
     tuition = db.get(Tuition, tuition_id, populate_existing=True)
     if not tuition:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy khoản học phí")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tuition liability not found")
 
     if tuition.status == PAID and tuition.paid_by_txn == transaction_id:
         log.info(
-            "Commit idempotent: tuition_id=%s đã PAID bởi txn_id=%s từ trước", tuition_id, transaction_id
+            "Idempotent commit: tuition_id=%s was already PAID by txn_id=%s", tuition_id, transaction_id
         )
-        return CommitResponse(status=PAID, message="Học phí đã được thanh toán bởi giao dịch này trước đó")
+        return CommitResponse(status=PAID, message="Tuition was already paid by this transaction")
 
-    # Thực hiện UPDATE có điều kiện nguyên tử: chỉ thành công khi RESERVED bởi đúng txn_id này
+    # 2. Atomic conditional transition: RESERVED (by this txn) -> PAID
     res = db.execute(
         update(Tuition)
         .where(
@@ -220,12 +228,12 @@ def commit_tuition(
     db.commit()
 
     if res.rowcount == 1:
-        log.info("Xác nhận mark-paid thành công: tuition_id=%s bởi txn_id=%s", tuition_id, transaction_id)
-        return CommitResponse(status=PAID, message="Học phí đã được đánh dấu thanh toán thành công")
+        log.info("Mark-paid commit successful: tuition_id=%s by txn_id=%s", tuition_id, transaction_id)
+        return CommitResponse(status=PAID, message="Tuition marked as paid successfully")
 
     raise HTTPException(
         status_code=status.HTTP_409_CONFLICT,
-        detail="Học phí không được khóa bởi giao dịch này hoặc đã được thanh toán bởi giao dịch khác",
+        detail="Tuition is not reserved by this transaction or already paid by another transaction",
     )
 
 
@@ -234,10 +242,10 @@ def release_tuition(
     tuition_id: str,
     transaction_id: str,
 ) -> ReleaseResponse:
-    """Mở khóa học phí (Release hold) đưa trạng thái trở lại 'UNPAID'.
+    """Release hold on tuition liability (RESERVED -> UNPAID).
 
-    Được gọi khi người dùng bấm Hủy giao dịch hoặc khi các bước tiếp theo của Saga
-    gặp sự cố (ví dụ: OTP sai quá số lần, trừ tiền tài khoản thất bại).
+    Called on transaction cancellation or saga compensation failure.
+    Idempotent: No-op (released=False) if hold is already gone or belongs to another transaction.
     """
     res = db.execute(
         update(Tuition)
@@ -257,10 +265,10 @@ def release_tuition(
     db.commit()
 
     if res.rowcount == 1:
-        log.info("Giải phóng khóa học phí thành công: tuition_id=%s cho txn_id=%s", tuition_id, transaction_id)
-        return ReleaseResponse(released=True, message="Đã mở khóa học phí thành công")
+        log.info("Tuition hold released: tuition_id=%s for txn_id=%s", tuition_id, transaction_id)
+        return ReleaseResponse(released=True, message="Tuition hold released successfully")
 
     return ReleaseResponse(
         released=False,
-        message="Khóa học phí không tồn tại hoặc không thuộc về giao dịch này",
+        message="Tuition hold not found or not owned by this transaction",
     )

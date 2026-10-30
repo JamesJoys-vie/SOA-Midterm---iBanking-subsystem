@@ -1,58 +1,71 @@
-"""Unit tests và API integration tests cho user-service."""
+"""Unit and integration tests for user-service (Tasks 1 & 4 - Nguyen Duc Hieu)."""
 from decimal import Decimal
 from fastapi.testclient import TestClient
 
 from app.models import User
 
 
+# ==============================================================================
+# 1. HEALTH AND READINESS CHECKS
+# ==============================================================================
+
 def test_health_and_ready(client: TestClient):
-    """Kiểm tra liveness và readiness endpoints."""
+    """Test liveness and readiness probe endpoints."""
     res = client.get("/health")
     assert res.status_code == 200
     assert res.json()["status"] == "ok"
+    assert res.json()["service"] == "user-service"
 
     res_ready = client.get("/ready")
     assert res_ready.status_code == 200
     assert res_ready.json()["status"] == "ready"
 
 
+# ==============================================================================
+# 2. TASK 1: AUTHENTICATION AND LOGIN
+# ==============================================================================
+
 def test_login_success(client: TestClient, sample_user: User):
-    """Đăng nhập thành công trả về JWT access token."""
+    """Successful login returns a signed JWT Bearer access token."""
     res = client.post("/auth/login", json={"username": "alice", "password": "Password123!"})
     assert res.status_code == 200
     data = res.json()
     assert "access_token" in data
     assert data["token_type"] == "bearer"
-    assert data["expires_in"] == 1800  # 30 phút
+    assert data["expires_in"] == 1800  # 30 minutes
 
 
 def test_login_wrong_password(client: TestClient, sample_user: User):
-    """Đăng nhập sai mật khẩu trả về 401 Unauthorized."""
+    """Login with wrong password must return 401 Unauthorized."""
     res = client.post("/auth/login", json={"username": "alice", "password": "WrongPassword!"})
     assert res.status_code == 401
-    assert "Tên đăng nhập hoặc mật khẩu" in res.json()["detail"]
+    assert "Invalid username or password" in res.json()["detail"]
 
 
 def test_login_nonexistent_user(client: TestClient):
-    """Đăng nhập với username không tồn tại trả về 401 Unauthorized."""
+    """Login with unknown username must return 401 Unauthorized."""
     res = client.post("/auth/login", json={"username": "not_found_user", "password": "Password123!"})
     assert res.status_code == 401
-    assert "Tên đăng nhập hoặc mật khẩu" in res.json()["detail"]
+    assert "Invalid username or password" in res.json()["detail"]
 
+
+# ==============================================================================
+# 3. TASK 1: USER PROFILE & AVAILABLE BALANCE (GET /me)
+# ==============================================================================
 
 def test_get_me_unauthenticated(client: TestClient):
-    """Truy cập GET /me mà không có token hoặc header X-User-Id phải bị 401."""
+    """Accessing GET /me without token or Gateway header must return 401 Unauthorized."""
     res = client.get("/me")
     assert res.status_code == 401
 
 
 def test_get_me_with_bearer_token(client: TestClient, sample_user: User):
-    """Truy cập GET /me với Authorization Bearer token."""
-    # 1. Đăng nhập lấy token
+    """Accessing GET /me with Bearer token returns full user profile and balance."""
+    # 1. Login to get token
     login_res = client.post("/auth/login", json={"username": "alice", "password": "Password123!"})
     token = login_res.json()["access_token"]
 
-    # 2. Gọi GET /me
+    # 2. Call GET /me
     res = client.get("/me", headers={"Authorization": f"Bearer {token}"})
     assert res.status_code == 200
     profile = res.json()
@@ -64,7 +77,7 @@ def test_get_me_with_bearer_token(client: TestClient, sample_user: User):
 
 
 def test_get_me_with_gateway_header(client: TestClient, sample_user: User):
-    """Truy cập GET /users/me qua header X-User-Id do API Gateway truyền tiếp."""
+    """Accessing GET /users/me with X-User-Id injected by API Gateway."""
     res = client.get("/users/me", headers={"X-User-Id": sample_user.id})
     assert res.status_code == 200
     profile = res.json()
@@ -73,21 +86,25 @@ def test_get_me_with_gateway_header(client: TestClient, sample_user: User):
 
 
 def test_get_account_balance(client: TestClient, sample_user: User):
-    """Kiểm tra endpoint lấy số dư GET /accounts/me."""
+    """Inquire account balance via GET /accounts/me."""
     res = client.get("/accounts/me", headers={"X-User-Id": sample_user.id})
     assert res.status_code == 200
     assert Decimal(str(res.json()["balance"])) == Decimal("30000000.00")
 
 
-def test_debit_account_success_and_idempotency(client: TestClient, sample_user: User):
-    """Kiểm tra trừ tiền có điều kiện và tính Idempotency:
+# ==============================================================================
+# 4. TASK 4: CONDITIONAL DEBIT, IDEMPOTENCY & REFUND
+# ==============================================================================
 
-    1. Trừ lần 1: thành công, số dư giảm từ 30M còn 20M.
-    2. Trừ lần 2 cùng txn_id: trả về thành công với số dư 20M (không trừ lần 2).
+def test_debit_account_success_and_idempotency(client: TestClient, sample_user: User):
+    """Test Task 4 conditional debit and idempotency:
+
+    1. First debit: succeeds, balance decreases from 30M to 20M.
+    2. Second debit with same txn_id: returns previous balance (20M) without deducting again.
     """
     txn_id = "txn-unique-test-1"
 
-    # Lần 1: Trừ 10,000,000 VND
+    # 1. First debit of 10,000,000 VND
     res1 = client.post(
         "/internal/accounts/debit",
         json={"user_id": sample_user.id, "amount": 10000000.00, "transaction_id": txn_id},
@@ -96,30 +113,66 @@ def test_debit_account_success_and_idempotency(client: TestClient, sample_user: 
     assert res1.json()["success"] is True
     assert Decimal(str(res1.json()["balance_after"])) == Decimal("20000000.00")
 
-    # Lần 2: Thử gửi lại đúng txn_id đó
+    # 2. Second debit with same txn_id (idempotency check)
     res2 = client.post(
         "/internal/accounts/debit",
         json={"user_id": sample_user.id, "amount": 10000000.00, "transaction_id": txn_id},
     )
     assert res2.status_code == 200
     assert res2.json()["success"] is True
-    # Số dư vẫn là 20,000,000 VND, không bị trừ thêm lần nữa!
     assert Decimal(str(res2.json()["balance_after"])) == Decimal("20000000.00")
 
 
 def test_debit_account_insufficient_balance(client: TestClient, sample_user: User):
-    """Trừ số tiền lớn hơn số dư khả dụng phải trả về 422 Unprocessable Entity."""
+    """Task 4: Attempting to debit more than available balance must return 422."""
     res = client.post(
         "/internal/accounts/debit",
         json={"user_id": sample_user.id, "amount": 50000000.00, "transaction_id": "txn-overdraft"},
     )
     assert res.status_code == 422
-    assert "không đủ" in res.json()["detail"]
+    assert "Insufficient balance" in res.json()["detail"]
 
+
+def test_credit_account_refund_and_idempotency(client: TestClient, sample_user: User):
+    """Task 4: Saga refund compensation test.
+
+    1. Debit 10M -> balance 20M.
+    2. Credit 10M (refund) -> balance restored to 30M.
+    3. Duplicate credit with same txn_id -> returns 30M without adding again.
+    """
+    txn_id = "txn-refund-test-1"
+
+    # Step 1: Debit 10,000,000 VND
+    client.post(
+        "/internal/accounts/debit",
+        json={"user_id": sample_user.id, "amount": 10000000.00, "transaction_id": txn_id},
+    )
+
+    # Step 2: Refund 10,000,000 VND
+    res_credit = client.post(
+        "/internal/accounts/credit",
+        json={"user_id": sample_user.id, "amount": 10000000.00, "transaction_id": txn_id},
+    )
+    assert res_credit.status_code == 200
+    assert res_credit.json()["success"] is True
+    assert Decimal(str(res_credit.json()["balance_after"])) == Decimal("30000000.00")
+
+    # Step 3: Duplicate refund with same txn_id
+    res_credit2 = client.post(
+        "/internal/accounts/credit",
+        json={"user_id": sample_user.id, "amount": 10000000.00, "transaction_id": txn_id},
+    )
+    assert res_credit2.status_code == 200
+    assert Decimal(str(res_credit2.json()["balance_after"])) == Decimal("30000000.00")
+
+
+# ==============================================================================
+# 5. TRANSACTION HISTORY RECORD AND INQUIRY
+# ==============================================================================
 
 def test_transaction_history_record_and_list(client: TestClient, sample_user: User):
-    """Kiểm tra ghi lịch sử và đọc danh sách lịch sử giao dịch (GET /history)."""
-    # 1. Ghi lịch sử giao dịch
+    """Test recording a transaction and querying it through GET /history."""
+    # 1. Record history entry
     rec_res = client.post(
         "/internal/history",
         json={
@@ -132,7 +185,7 @@ def test_transaction_history_record_and_list(client: TestClient, sample_user: Us
     )
     assert rec_res.status_code == 200
 
-    # 2. Đọc lại lịch sử bằng GET /history
+    # 2. Read history via GET /history
     hist_res = client.get("/history", headers={"X-User-Id": sample_user.id})
     assert hist_res.status_code == 200
     items = hist_res.json()

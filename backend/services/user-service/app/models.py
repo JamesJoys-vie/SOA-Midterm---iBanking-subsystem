@@ -1,32 +1,45 @@
-"""Các model cơ sở dữ liệu cho user-service.
+"""SQLAlchemy ORM models for user-service.
 
-Tuân thủ phân công công việc:
-- Bảng users: lưu thông tin đăng nhập, họ tên, số điện thoại, email.
-- Bảng accounts: lưu tài khoản ngân hàng, số dư khả dụng (balance >= 0) gắn với từng người dùng.
-- Bảng transactions / ledger_entries: lưu vết giao dịch trừ tiền và lịch sử giao dịch (GET /history).
+Responsibilities assigned to Hieu:
+- Task 1:
+  * users table: username, bcrypt password_hash, full_name, phone, email
+  * accounts table: balance (CHECK balance >= 0), version (optimistic locking)
+  * GET /me: profile and available balance
+  * transactions table: transaction history (GET /history)
+- Task 4:
+  * Conditional debit (balance >= amount)
+  * Idempotent debit and credit (refund): ledger_entries ensures each txn_id is debited/credited at most once
 """
 import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, Numeric, String, UniqueConstraint, func
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
 
 
 def new_id() -> str:
-    """Tạo mã định danh duy nhất UUID dạng chuỗi."""
+    """Generate a random UUID string."""
     return str(uuid.uuid4())
 
 
 def utcnow() -> datetime:
-    """Lấy thời gian hiện tại theo chuẩn UTC (naive datetime)."""
+    """Return naive current UTC datetime."""
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 class User(Base):
-    """Bảng lưu trữ thông tin tài khoản người dùng đăng nhập hệ thống iBanking."""
+    """Users table: stores login credentials and profile details."""
     __tablename__ = "users"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
@@ -37,12 +50,15 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(255), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
-    # Quan hệ 1-1 với tài khoản ngân hàng
+    # 1-to-1 relationship with Account
     account: Mapped["Account"] = relationship("Account", back_populates="user", uselist=False)
 
 
 class Account(Base):
-    """Bảng lưu trữ tài khoản tiền gửi và số dư của người dùng."""
+    """Accounts table: stores bank account balance for each payer.
+
+    The check constraint (balance >= 0) is the last line of defense against overdraft.
+    """
     __tablename__ = "accounts"
     __table_args__ = (
         CheckConstraint("balance >= 0", name="ck_account_balance_nonneg"),
@@ -56,8 +72,33 @@ class Account(Base):
     user: Mapped["User"] = relationship("User", back_populates="account")
 
 
+class LedgerEntry(Base):
+    """Ledger table: tracks all balance debit and credit (refund) movements.
+
+    Enforces Idempotency:
+    - At most ONE DEBIT and ONE CREDIT per transaction_id.
+    - Prevents double charging or duplicate refunds.
+    """
+    __tablename__ = "ledger_entries"
+    __table_args__ = (
+        UniqueConstraint("transaction_id", "type", name="uq_ledger_txn_type"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    transaction_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    account_id: Mapped[str] = mapped_column(ForeignKey("accounts.id"), nullable=False)
+    type: Mapped[str] = mapped_column(String(10), nullable=False)  # 'DEBIT' or 'CREDIT'
+    amount: Mapped[Decimal] = mapped_column(Numeric(15, 2), nullable=False)
+    balance_after: Mapped[Decimal] = mapped_column(Numeric(15, 2), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+# Backward-compatible alias for existing tests
+DebitLedger = LedgerEntry
+
+
 class TransactionHistory(Base):
-    """Bảng lưu lịch sử giao dịch phục vụ cho endpoint GET /history."""
+    """Transactions history table: stores payment transaction records for GET /history."""
     __tablename__ = "transactions"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
@@ -70,18 +111,3 @@ class TransactionHistory(Base):
     failure_reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-
-
-class DebitLedger(Base):
-    """Bảng ghi nhận các lần trừ tiền để đảm bảo tính Idempotency: mỗi txn_id chỉ trừ đúng 1 lần."""
-    __tablename__ = "debit_ledger"
-    __table_args__ = (
-        UniqueConstraint("transaction_id", name="uq_debit_ledger_txn"),
-    )
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
-    transaction_id: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
-    account_id: Mapped[str] = mapped_column(ForeignKey("accounts.id"), nullable=False)
-    amount: Mapped[Decimal] = mapped_column(Numeric(15, 2), nullable=False)
-    balance_after: Mapped[Decimal] = mapped_column(Numeric(15, 2), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)

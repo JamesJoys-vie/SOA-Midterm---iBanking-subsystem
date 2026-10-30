@@ -1,50 +1,53 @@
 # user-service
 
-Dịch vụ người dùng & xác thực cho phân hệ Thanh toán học phí (iBanking).
-Thành viên phụ trách: **Nguyễn Đức Hiệu (524H0087)**.
+User and authentication microservice for the Tuition Payment (iBanking) Subsystem.
+Assigned developer: **Nguyen Duc Hieu (524H0087)**.
 
 ---
 
-## 1. Vị trí trong kiến trúc hệ thống
+## 1. Role in the Architecture
 
 ```
-Trình duyệt / Web SPA ──HTTP Bearer / POST /login──> API Gateway ──X-User-Id / Proxy──> user-service
-                                                                                             │
-                                                                                             └──> users database (riêng)
+Browser / Web SPA ──HTTP Bearer / POST /login──> API Gateway ──X-User-Id / Proxy──> user-service
+                                                                                          │
+                                                                                          └──> users database (own)
 ```
 
-- **Cơ sở dữ liệu độc lập (Database-per-Service)**: `user-service` sở hữu cơ sở dữ liệu riêng chứa các bảng `users`, `accounts`, `transactions`, `debit_ledger`. Không có dịch vụ nào khác được truy cập trực tiếp vào DB này.
-- **Xác thực bảo mật**:
-  - Mật khẩu lưu dưới dạng hash bằng thuật toán `bcrypt` có salt ngẫu nhiên.
-  - Sử dụng kỹ thuật **Dummy Hash** để phòng chống tấn công dò username qua chênh lệch thời gian phản hồi (Timing Attack).
-  - Cấp phát và xác thực mã **JWT Access Token (HS256)** có thời hạn 30 phút theo chuẩn phân hệ iBanking.
-- **Tính nhất quán dữ liệu**:
-  - Trừ tiền có điều kiện nguyên tử: `UPDATE accounts SET balance = balance - :amount WHERE user_id = :id AND balance >= :amount`.
-  - Đảm bảo **Idempotency**: kiểm tra bảng `debit_ledger` để cam kết mỗi mã giao dịch `transaction_id` chỉ trừ tiền đúng 1 lần duy nhất.
+- **Database-per-Service**: `user-service` owns its isolated database containing `users`, `accounts`, `ledger_entries`, and `transactions`. No other service accesses this database directly.
+- **Security & Authentication**:
+  - Passwords hashed with `bcrypt` (salted).
+  - Evaluates a **Dummy Hash** if the username is not found to prevent Timing Attacks.
+  - Generates and verifies **JWT Access Tokens (HS256)** with a 30-minute TTL.
+- **Data Consistency (Tasks 1 & 4)**:
+  - Atomic conditional balance deduction: `UPDATE accounts SET balance = balance - :amount WHERE user_id = :id AND balance >= :amount`.
+  - **Idempotency**: Checked against `ledger_entries` so that each `transaction_id` is debited at most once.
+  - **Saga Compensation**: Supports `POST /internal/accounts/credit` to refund money if a later payment saga step fails.
 
 ---
 
-## 2. Đáp ứng các yêu cầu trong bảng "Phân công công việc"
+## 2. Fulfillment of Project Requirements
 
-| Mục | Yêu cầu nghiệp vụ | Triển khai trong user-service |
+| Section | Business Requirement | Implementation in user-service |
 |---|---|---|
-| **Mục 1** | Đăng nhập bằng username và password (không có đăng ký) | `POST /login` và `POST /auth/login`, mã hóa bcrypt, cấp JWT Bearer token |
-| **Mục 1** | Lưu họ tên, số điện thoại, email, số dư | Bảng `users` và `accounts`, truy xuất qua endpoint `GET /me` (và `GET /users/me`, `GET /accounts/me`) |
-| **Mục 1** | Lịch sử giao dịch | `GET /history` và `GET /transactions` (sắp xếp giao dịch mới nhất lên đầu) |
-| **Mục 1** | Chỉ người đã đăng nhập mới truy cập | Middleware / Dependency xác thực `get_current_user_id` kiểm tra token JWT hợp lệ và còn hạn |
-| **Mục 2** | Thông tin người nộp tiền (họ tên, SĐT, email) tự động điền, chỉ đọc | Cung cấp dữ liệu đầy đủ từ `GET /me` |
-| **Mục 2** | Số dư khả dụng của người nộp | Cung cấp trường `balance` trong `GET /me` và `GET /accounts/me` |
-| **Mục 4** | Trừ tiền có điều kiện & mỗi txn_id trừ 1 lần | `POST /internal/accounts/debit` với câu lệnh SQL nguyên tử `WHERE balance >= :amount` và bảng `debit_ledger` |
+| **Task 1** | Login with username and password (no registration) | `POST /login` and `POST /auth/login`, bcrypt hash verification, JWT Bearer token |
+| **Task 1** | Store full name, phone number, email, balance | `users` and `accounts` tables, exposed via `GET /me` (and `GET /users/me`, `GET /accounts/me`) |
+| **Task 1** | Transaction history | `GET /history` and `GET /transactions` (sorted newest first) |
+| **Task 1** | Only authenticated users access payment | `get_current_user_id` FastAPI dependency verifies JWT expiration and signature |
+| **Task 2** | Payer info (name, phone, email) auto-filled, read-only | Provided by `GET /me` |
+| **Task 2** | Payer available balance | Provided in `GET /me` and `GET /accounts/me` |
+| **Task 4** | Re-check transaction and balance | Conditional update `WHERE balance >= :amount` |
+| **Task 4** | Deduct money from payer account, at most once per txn_id | `POST /internal/accounts/debit` with idempotency ledger |
+| **Task 4** | Refund on compensation (if commit fails) | `POST /internal/accounts/credit` |
 
 ---
 
-## 3. Danh sách Endpoints (API Specification)
+## 3. Endpoints (API Specification)
 
-### 3.1. Public Endpoints (Client gọi qua API Gateway)
+### 3.1. Public Endpoints (Client via API Gateway)
 
-1. `POST /login` hoặc `POST /auth/login`
-   - **Request Body**: `{"username": "alice", "password": "Password123!"}`
-   - **Success (200)**:
+1. `POST /auth/login` (or `POST /login`)
+   - **Request**: `{"username": "alice", "password": "Password123!"}`
+   - **Response (200)**:
      ```json
      {
        "access_token": "eyJhbGciOiJIUzI1NiIsIn...",
@@ -52,11 +55,11 @@ Trình duyệt / Web SPA ──HTTP Bearer / POST /login──> API Gateway ─�
        "expires_in": 1800
      }
      ```
-   - **Error (401)**: `{"detail": "Tên đăng nhập hoặc mật khẩu không chính xác"}`
+   - **Error (401)**: `{"detail": "Invalid username or password"}`
 
-2. `GET /me` hoặc `GET /users/me`
-   - **Headers**: `Authorization: Bearer <token>` hoặc `X-User-Id: <uuid>` (do Gateway gán)
-   - **Success (200)**:
+2. `GET /me` (or `GET /users/me`)
+   - **Headers**: `Authorization: Bearer <token>` or `X-User-Id: <uuid>` (forwarded by Gateway)
+   - **Response (200)**:
      ```json
      {
        "id": "11111111-1111-5111-8111-111111111111",
@@ -67,43 +70,54 @@ Trình duyệt / Web SPA ──HTTP Bearer / POST /login──> API Gateway ─�
        "balance": "30000000.00"
      }
      ```
-   - **Error (401)**: `{"detail": "Yêu cầu đăng nhập để truy cập tài nguyên này"}`
 
 3. `GET /accounts/me`
-   - **Success (200)**: `{"balance": "30000000.00"}`
+   - **Response (200)**: `{"balance": "30000000.00"}`
 
-4. `GET /history` hoặc `GET /transactions`
-   - **Success (200)**: Danh sách lịch sử giao dịch (mới nhất xếp trước)
+4. `GET /history` (or `GET /transactions`)
+   - **Response (200)**: Array of transaction history items (newest first).
 
-### 3.2. Internal Endpoints (Nội bộ giữa các dịch vụ)
+### 3.2. Internal Endpoints (Service-to-Service)
 
 1. `GET /internal/users/{user_id}`
-   - Cung cấp thông tin liên hệ của người nộp (họ tên, email) cho `payment-service` và `otp-service`.
+   - Provides payer contact details (full name, email) for `payment-service` and `otp-service`.
 
 2. `POST /internal/accounts/debit`
-   - **Request Body**: `{"user_id": "...", "amount": 15000000.00, "transaction_id": "txn-uuid"}`
-   - **Success (200)**:
+   - **Request**: `{"user_id": "...", "amount": "15000000.00", "transaction_id": "txn-uuid"}`
+   - **Response (200)**:
      ```json
      {
        "success": true,
        "transaction_id": "txn-uuid",
        "balance_after": "15000000.00",
-       "message": "Trừ tiền tài khoản thành công"
+       "message": "Account debited successfully"
      }
      ```
-   - **Error (422)**: `{"detail": "Số dư tài khoản không đủ để thực hiện thanh toán"}`
+   - **Error (422)**: `{"detail": "Insufficient balance to complete the tuition payment"}`
+
+3. `POST /internal/accounts/credit`
+   - **Request**: `{"user_id": "...", "amount": "15000000.00", "transaction_id": "txn-uuid"}`
+   - **Response (200)**:
+     ```json
+     {
+       "success": true,
+       "transaction_id": "txn-uuid",
+       "balance_after": "30000000.00",
+       "message": "Account refunded successfully"
+     }
+     ```
 
 ---
 
-## 4. Kiểm thử và chạy ứng dụng
+## 4. Testing & Running
 
-### Chạy Unit Test:
+### Run unit and integration tests:
 ```bash
 pytest backend/services/user-service/tests -v
 ```
 
-### Chạy trực tiếp service:
+### Run standalone dev server:
 ```bash
 uvicorn app.main:app --port 8000 --reload
 ```
-Tài liệu tương tác Swagger UI: http://localhost:8000/docs
+Interactive Swagger API documentation: http://localhost:8000/docs

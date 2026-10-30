@@ -1,11 +1,13 @@
-"""Main entry point của tuition-service (FastAPI).
+"""Main entry point for tuition-service (FastAPI).
 
-Thực hiện các nhiệm vụ của Hiệu trong Task 2:
-- Tra cứu học phí theo MSSV: GET /tuitions?mssv= và GET /tuitions/{student_id}.
-  Tự động trả về họ tên sinh viên và toàn bộ số tiền học phí (không nộp một phần).
-- Khóa học phí (Reserve hold): POST /internal/tuitions/{id}/reserve (cập nhật có điều kiện).
-- Đánh dấu đã thanh toán (Mark-paid): POST /internal/tuitions/{id}/commit.
-- Mở khóa học phí (Release): POST /internal/tuitions/{id}/release.
+Implements Hieu's responsibilities:
+- Task 2:
+  * Tuition lookup: GET /tuitions?mssv= and GET /tuitions/{student_id}.
+    Returns student name and full tuition amount (partial payment disallowed).
+  * Conditional reservation hold: POST /internal/tuitions/{id}/reserve.
+- Task 4:
+  * Mark-paid commit: POST /internal/tuitions/{id}/commit (only current hold owner).
+  * Release hold: POST /internal/tuitions/{id}/release (saga compensation or cancel).
 """
 import logging
 from contextlib import asynccontextmanager
@@ -37,16 +39,16 @@ log = logging.getLogger("tuition-service")
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    """Khởi động ứng dụng: Tự động khởi tạo bảng dữ liệu nếu chưa có."""
-    log.info("tuition-service đang khởi động...")
+    """Application startup: Initialize database tables."""
+    log.info("tuition-service is starting up...")
     init_db()
     yield
-    log.info("tuition-service đang tắt...")
+    log.info("tuition-service is shutting down...")
 
 
 app = FastAPI(
     title="Tuition Service - iBanking Subsystem",
-    description="Dịch vụ tra cứu học phí theo MSSV, khóa học phí có điều kiện và cập nhật trạng thái thanh toán",
+    description="Tuition lookup by MSSV, conditional reservation hold, and mark-paid status management",
     version="1.0.0",
     lifespan=lifespan,
 )
@@ -56,15 +58,15 @@ app = FastAPI(
 # HEALTHCHECK & READINESS ENDPOINTS
 # ==============================================================================
 
-@app.get("/health", tags=["Hệ thống"])
+@app.get("/health", tags=["System"])
 def health() -> dict:
-    """Liveness check: Xác nhận tiến trình service đang chạy."""
+    """Liveness check: Indicates the process is up."""
     return {"status": "ok", "service": "tuition-service"}
 
 
-@app.get("/ready", tags=["Hệ thống"])
+@app.get("/ready", tags=["System"])
 def ready() -> JSONResponse:
-    """Readiness check: Xác nhận service đã kết nối thành công tới database."""
+    """Readiness check: Indicates the database connection is healthy."""
     if db_is_up():
         return JSONResponse({"status": "ready", "service": "tuition-service"})
     return JSONResponse(
@@ -74,30 +76,29 @@ def ready() -> JSONResponse:
 
 
 # ==============================================================================
-# TASK 2: TRA CỨU HỌC PHÍ (GET /tuitions?mssv= và GET /tuitions/{student_id})
+# TASK 2: TUITION LOOKUP (GET /tuitions?mssv= AND GET /tuitions/{student_id})
 # ==============================================================================
 
 @app.get(
     "/tuitions",
     response_model=TuitionInfo,
-    tags=["Tra cứu học phí"],
-    summary="Tra cứu học phí theo MSSV qua query parameter (?mssv=)",
+    tags=["Tuition Lookup"],
+    summary="Tuition lookup by MSSV via query parameter (?mssv=)",
 )
 def get_tuition_by_query(
-    mssv: Optional[str] = Query(None, description="Mã số sinh viên (ví dụ: 52100001, 521H0081)"),
-    student_id: Optional[str] = Query(None, description="Alias cho mssv"),
+    mssv: Optional[str] = Query(None, description="Student ID (e.g. 52100001, 521H0081)"),
+    student_id: Optional[str] = Query(None, description="Alias for mssv"),
     db: Session = Depends(get_db),
 ) -> TuitionInfo:
-    """Yêu cầu Mục 2b trong Phân công công việc:
+    """Task 2b: Enter MSSV -> auto-lookup student name and full tuition amount.
 
-    'Nhập MSSV -> tự động tra cứu tên sinh viên và số tiền'.
-    'Chỉ thanh toán toàn bộ, không thanh toán một phần'.
+    Only full tuition payment is allowed (no partial payment).
     """
     code = mssv or student_id
     if not code:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Vui lòng cung cấp tham số 'mssv' để tra cứu",
+            detail="Please provide the 'mssv' query parameter for tuition lookup",
         )
     return lookup_tuition(db, code)
 
@@ -105,96 +106,95 @@ def get_tuition_by_query(
 @app.get(
     "/tuitions/{student_id}",
     response_model=TuitionInfo,
-    tags=["Tra cứu học phí"],
-    summary="Tra cứu học phí theo MSSV qua path parameter (chuẩn OpenAPI)",
+    tags=["Tuition Lookup"],
+    summary="Tuition lookup by MSSV via path parameter (OpenAPI standard)",
 )
 def get_tuition_by_path(
     student_id: str,
     db: Session = Depends(get_db),
 ) -> TuitionInfo:
-    """Tra cứu học phí của sinh viên theo đường dẫn /tuitions/{student_id}."""
+    """Look up student tuition liability via path parameter /tuitions/{student_id}."""
     return lookup_tuition(db, student_id)
 
 
 # ==============================================================================
-# TASK 2: KHÓA HỌC PHÍ CÓ ĐIỀU KIỆN (RESERVE HOLD)
+# TASK 2: CONDITIONAL RESERVATION HOLD
 # ==============================================================================
 
 @app.post(
     "/internal/tuitions/{tuition_id}/reserve",
     response_model=TuitionInfo,
-    tags=["Khóa học phí"],
-    summary="Khóa học phí có điều kiện cho một giao dịch (chuẩn internal)",
+    tags=["Tuition Hold"],
+    summary="Hold tuition conditionally for a transaction (internal)",
 )
 @app.post(
     "/tuitions/{tuition_id}/reserve",
     response_model=TuitionInfo,
-    tags=["Khóa học phí"],
-    summary="Khóa học phí có điều kiện cho một giao dịch (alias)",
+    tags=["Tuition Hold"],
+    summary="Hold tuition conditionally for a transaction (alias)",
 )
 def reserve_tuition_endpoint(
     tuition_id: str,
     body: ReserveRequest,
     db: Session = Depends(get_db),
 ) -> TuitionInfo:
-    """Yêu cầu Mục 2 trong Phân công công việc:
+    """Task 2: Conditional reservation hold.
 
-    'Endpoint khóa học phí (cập nhật có điều kiện)'.
-    Thực hiện câu lệnh UPDATE có điều kiện nguyên tử để khóa học phí trong 10 phút,
-    chống tranh chấp đồng thời khi nhiều người cùng nộp một mã sinh viên.
+    Executes an atomic conditional UPDATE to lock tuition for 10 minutes,
+    preventing race conditions when multiple payers attempt to pay for the same student.
     """
     return reserve_tuition(db, tuition_id, body.transaction_id)
 
 
 # ==============================================================================
-# TASK 4 & TÓM TẮT: ĐÁNH DẤU ĐÃ THANH TOÁN (MARK-PAID / COMMIT)
+# TASK 4: MARK-PAID (COMMIT)
 # ==============================================================================
 
 @app.post(
     "/internal/tuitions/{tuition_id}/commit",
     response_model=CommitResponse,
-    tags=["Cập nhật học phí"],
-    summary="Cập nhật học phí thành đã thanh toán (chỉ giao dịch đang giữ khóa)",
+    tags=["Tuition Status"],
+    summary="Update tuition to PAID (only transaction holding the lock)",
 )
 @app.post(
     "/tuitions/{tuition_id}/commit",
     response_model=CommitResponse,
-    tags=["Cập nhật học phí"],
-    summary="Cập nhật học phí thành đã thanh toán (alias)",
+    tags=["Tuition Status"],
+    summary="Update tuition to PAID (alias)",
 )
 def commit_tuition_endpoint(
     tuition_id: str,
     body: CommitRequest,
     db: Session = Depends(get_db),
 ) -> CommitResponse:
-    """Yêu cầu Mục 4 và tóm tắt công việc của Hiệu:
+    """Task 4: Mark-paid (only transaction holding the lock).
 
-    'mark-paid (chỉ giao dịch đang giữ khóa)'.
-    Chuyển trạng thái học phí sang PAID. Chỉ chấp nhận nếu giao dịch hiện tại đang giữ khóa hợp lệ.
+    Transitions status from RESERVED to PAID.
+    Rejects with 409 Conflict if not currently locked by this transaction.
     """
     return commit_tuition(db, tuition_id, body.transaction_id)
 
 
 # ==============================================================================
-# TASK 4: MỞ KHÓA HỌC PHÍ (RELEASE HOLD KHI HỦY HOẶC THẤT BẠI)
+# TASK 4: RELEASE HOLD (COMPENSATION OR CANCELLATION)
 # ==============================================================================
 
 @app.post(
     "/internal/tuitions/{tuition_id}/release",
     response_model=ReleaseResponse,
-    tags=["Mở khóa học phí"],
-    summary="Mở khóa học phí đưa về trạng thái UNPAID",
+    tags=["Tuition Hold"],
+    summary="Release tuition hold back to UNPAID status",
 )
 @app.post(
     "/tuitions/{tuition_id}/release",
     response_model=ReleaseResponse,
-    tags=["Mở khóa học phí"],
-    summary="Mở khóa học phí (alias)",
+    tags=["Tuition Hold"],
+    summary="Release tuition hold back to UNPAID status (alias)",
 )
 def release_tuition_endpoint(
     tuition_id: str,
     body: ReleaseRequest,
     db: Session = Depends(get_db),
 ) -> ReleaseResponse:
-    """Giải phóng khóa học phí khi giao dịch bị hủy bỏ hoặc thất bại."""
+    """Release tuition hold when transaction is cancelled or saga step fails."""
     return release_tuition(db, tuition_id, body.transaction_id)

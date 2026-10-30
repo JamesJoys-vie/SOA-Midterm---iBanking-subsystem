@@ -1,10 +1,14 @@
-"""Tầng xử lý nghiệp vụ (Business Service Layer) cho user-service.
+"""Business Service Layer for user-service.
 
-Triển khai chi tiết các yêu cầu của Task 1 và Task 2:
-- Xác thực đăng nhập và cấp phát JWT token.
-- Truy xuất thông tin người dùng và số dư khả dụng (GET /me).
-- Trừ tiền tài khoản có điều kiện nguyên tử (balance >= amount) và đảm bảo Idempotency.
-- Quản lý và tra cứu lịch sử giao dịch người dùng (GET /history).
+Implements Task 1 and Task 4:
+- Task 1:
+  * User authentication with bcrypt and JWT token issue.
+  * Retrieve user profile with available balance (GET /me).
+  * Transaction history retrieval (GET /history).
+- Task 4:
+  * Conditional atomic balance deduction (balance >= amount).
+  * Idempotency guarantee: each transaction_id is debited at most once.
+  * Saga compensation: credit/refund endpoint for rollbacks.
 """
 import logging
 from decimal import Decimal
@@ -15,8 +19,9 @@ from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.models import Account, DebitLedger, TransactionHistory, User, utcnow
+from app.models import Account, LedgerEntry, TransactionHistory, User, utcnow
 from app.schemas import (
+    CreditResponse,
     DebitResponse,
     TokenResponse,
     TransactionHistoryItem,
@@ -28,32 +33,32 @@ log = logging.getLogger("user-service.service")
 
 
 def authenticate_user(db: Session, username: str, password: str) -> TokenResponse:
-    """Xác thực người dùng bằng tên đăng nhập và mật khẩu.
+    """Authenticate user with username and password.
 
-    Sử dụng bcrypt để so khớp mật khẩu và kỹ thuật dummy-hash để chống timing attack.
-    Khi thành công, cấp phát JWT Bearer Token với thời hạn cấu hình.
+    Uses bcrypt password verification and dummy hash to prevent timing attacks.
+    On success, issues a signed JWT Bearer Token.
     """
     user = db.scalar(select(User).where(User.username == username.strip()))
 
-    # Lấy hash đã lưu nếu user tồn tại, nếu không dùng _DUMMY_HASH để thời gian xử lý đồng đều
+    # Check against stored hash if user exists, else compare against _DUMMY_HASH
     hash_to_check = user.password_hash if user else _DUMMY_HASH
     is_valid_password = verify_password(password, hash_to_check)
 
     if not user or not is_valid_password:
-        log.warning("Đăng nhập thất bại cho username='%s'", username)
+        log.warning("Authentication failed for username='%s'", username)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Tên đăng nhập hoặc mật khẩu không chính xác",
+            detail="Invalid username or password",
         )
 
-    # Sinh mã JWT token
+    # Issue JWT token
     token = create_access_token(
         user_id=user.id,
         secret=settings.jwt_secret,
         expire_minutes=settings.jwt_expire_minutes,
     )
 
-    log.info("Người dùng '%s' (id=%s) đã đăng nhập thành công", user.username, user.id)
+    log.info("User '%s' (id=%s) logged in successfully", user.username, user.id)
     return TokenResponse(
         access_token=token,
         token_type="bearer",
@@ -62,21 +67,20 @@ def authenticate_user(db: Session, username: str, password: str) -> TokenRespons
 
 
 def get_user_profile(db: Session, user_id: str) -> UserProfile:
-    """Truy xuất thông tin người dùng và số dư khả dụng hiện tại (GET /me).
+    """Retrieve user profile information along with current available balance (GET /me).
 
-    Nếu tài khoản ngân hàng chưa tồn tại, tự động khởi tạo với số dư 0.
+    Automatically initializes an account with 0.00 balance if not already present.
     """
     user = db.get(User, user_id)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Không tìm thấy người dùng",
+            detail="User not found",
         )
 
-    # Tìm tài khoản ngân hàng liên kết
+    # Find associated payment account
     account = db.scalar(select(Account).where(Account.user_id == user.id))
     if not account:
-        # Tự động tạo tài khoản mới nếu chưa có
         account = Account(user_id=user.id, balance=Decimal("0.00"), version=0)
         db.add(account)
         db.commit()
@@ -93,15 +97,19 @@ def get_user_profile(db: Session, user_id: str) -> UserProfile:
 
 
 def get_account_balance(db: Session, user_id: str) -> Decimal:
-    """Truy xuất nhanh số dư khả dụng của người dùng."""
+    """Quick lookup of the user's available balance."""
     account = db.scalar(select(Account).where(Account.user_id == user_id))
     if not account:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Không tìm thấy tài khoản thanh toán của người dùng này",
+            detail="Payment account not found for this user",
         )
     return account.balance
 
+
+# ==============================================================================
+# TASK 4: CONDITIONAL DEBIT & SAGA COMPENSATION (CREDIT)
+# ==============================================================================
 
 def debit_user_account(
     db: Session,
@@ -109,39 +117,42 @@ def debit_user_account(
     amount: Decimal,
     transaction_id: str,
 ) -> DebitResponse:
-    """Thực hiện trừ tiền có điều kiện nguyên tử khỏi tài khoản người nộp.
+    """Deduct money from the payer's account conditionally and atomically.
 
-    Quy tắc nghiệp vụ:
-    1. Idempotency: Mỗi transaction_id chỉ trừ tiền đúng 1 lần duy nhất.
-       Nếu đã trừ trước đó, trả về thành công kèm số dư hiện tại mà không trừ lần 2.
-    2. Điều kiện đủ số dư: Cập nhật nguyên tử với mệnh đề 'WHERE balance >= :amount'.
-       Nếu số dư không đủ -> ném HTTP 422 Unprocessable Entity.
+    Business and safety rules:
+    1. Idempotency: Each transaction_id is debited at most once.
+       If already debited, return success with the previously recorded balance.
+    2. Sufficient Funds Check: Atomic UPDATE with condition 'WHERE balance >= :amount'.
+       If balance is insufficient -> rowcount is 0 -> return HTTP 422 Unprocessable Content.
     """
-    # 1. Kiểm tra Idempotency qua bảng DebitLedger
+    # 1. Idempotency check via ledger_entries
     existing_ledger = db.scalar(
-        select(DebitLedger).where(DebitLedger.transaction_id == transaction_id)
+        select(LedgerEntry).where(
+            LedgerEntry.transaction_id == transaction_id,
+            LedgerEntry.type == "DEBIT",
+        )
     )
     if existing_ledger:
         log.info(
-            "Yêu cầu trừ tiền bị lặp cho txn_id=%s, trả về kết quả trước đó mà không trừ lại",
+            "Duplicate debit request for txn_id=%s. Returning existing balance without re-charging.",
             transaction_id,
         )
         return DebitResponse(
             success=True,
             transaction_id=transaction_id,
             balance_after=existing_ledger.balance_after,
-            message="Giao dịch này đã được ghi nhận trừ tiền trước đó",
+            message="Transaction was already debited previously",
         )
 
-    # 2. Tìm tài khoản người nộp
+    # 2. Retrieve payer account
     account = db.scalar(select(Account).where(Account.user_id == user_id))
     if not account:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Không tìm thấy tài khoản ngân hàng của người dùng",
+            detail="Payer account not found",
         )
 
-    # 3. Thực hiện câu lệnh UPDATE có điều kiện nguyên tử (Atomic Conditional Update)
+    # 3. Execute atomic conditional update (balance >= amount)
     result = db.execute(
         update(Account)
         .where(Account.user_id == user_id, Account.balance >= amount)
@@ -152,27 +163,28 @@ def debit_user_account(
         .execution_options(synchronize_session=False)
     )
 
-    # Nếu rowcount == 0: nghĩa là số dư nhỏ hơn số tiền cần trừ
+    # If rowcount == 0: insufficient balance
     if result.rowcount == 0:
         log.warning(
-            "Trừ tiền thất bại cho user_id=%s: Số dư khả dụng (%s) nhỏ hơn số tiền (%s)",
+            "Debit failed for user_id=%s: available balance (%s) is less than amount (%s)",
             user_id,
             account.balance,
             amount,
         )
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Số dư tài khoản không đủ để thực hiện thanh toán",
+            detail="Insufficient balance to complete the tuition payment",
         )
 
-    # Lấy lại số dư mới sau khi trừ
+    # Reload new balance
     db.refresh(account)
     new_balance = account.balance
 
-    # 4. Ghi nhận vào sổ cái DebitLedger để bảo đảm Idempotency
-    ledger = DebitLedger(
+    # 4. Record entry in ledger_entries to guarantee idempotency
+    ledger = LedgerEntry(
         transaction_id=transaction_id,
         account_id=account.id,
+        type="DEBIT",
         amount=amount,
         balance_after=new_balance,
     )
@@ -180,7 +192,7 @@ def debit_user_account(
     db.commit()
 
     log.info(
-        "Trừ tiền thành công: user_id=%s, txn_id=%s, trừ %s VND, số dư còn lại: %s VND",
+        "Debit successful: user_id=%s, txn_id=%s, amount=%s, remaining balance=%s",
         user_id,
         transaction_id,
         amount,
@@ -191,16 +203,97 @@ def debit_user_account(
         success=True,
         transaction_id=transaction_id,
         balance_after=new_balance,
-        message="Trừ tiền tài khoản thành công",
+        message="Account debited successfully",
     )
 
+
+def credit_user_account(
+    db: Session,
+    user_id: str,
+    amount: Decimal,
+    transaction_id: str,
+) -> CreditResponse:
+    """Refund money back to payer's account (saga compensation).
+
+    Enforces Idempotency: each transaction_id is refunded at most once.
+    """
+    # 1. Idempotency check for refund
+    existing_ledger = db.scalar(
+        select(LedgerEntry).where(
+            LedgerEntry.transaction_id == transaction_id,
+            LedgerEntry.type == "CREDIT",
+        )
+    )
+    if existing_ledger:
+        log.info(
+            "Duplicate credit request for txn_id=%s. Returning existing balance without re-refunding.",
+            transaction_id,
+        )
+        return CreditResponse(
+            success=True,
+            transaction_id=transaction_id,
+            balance_after=existing_ledger.balance_after,
+            message="Transaction was already refunded previously",
+        )
+
+    # 2. Retrieve payer account
+    account = db.scalar(select(Account).where(Account.user_id == user_id))
+    if not account:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Payer account not found",
+        )
+
+    # 3. Add money back atomically
+    db.execute(
+        update(Account)
+        .where(Account.user_id == user_id)
+        .values(
+            balance=Account.balance + amount,
+            version=Account.version + 1,
+        )
+        .execution_options(synchronize_session=False)
+    )
+    db.refresh(account)
+    new_balance = account.balance
+
+    # 4. Record CREDIT entry in ledger
+    ledger = LedgerEntry(
+        transaction_id=transaction_id,
+        account_id=account.id,
+        type="CREDIT",
+        amount=amount,
+        balance_after=new_balance,
+    )
+    db.add(ledger)
+    db.commit()
+
+    log.info(
+        "Credit successful: user_id=%s, txn_id=%s, refunded=%s, new balance=%s",
+        user_id,
+        transaction_id,
+        amount,
+        new_balance,
+    )
+
+    return CreditResponse(
+        success=True,
+        transaction_id=transaction_id,
+        balance_after=new_balance,
+        message="Account refunded successfully",
+    )
+
+
+# ==============================================================================
+# TRANSACTION HISTORY
+# ==============================================================================
 
 def get_transaction_history(
     db: Session,
     user_id: str,
     limit: int = 100,
 ) -> List[TransactionHistoryItem]:
-    """Lấy danh sách lịch sử giao dịch của người dùng hiện tại (mới nhất lên đầu)."""
+    """Retrieve transaction history of the authenticated user (newest first)."""
     transactions = db.scalars(
         select(TransactionHistory)
         .where(TransactionHistory.payer_user_id == user_id)
@@ -220,7 +313,7 @@ def record_transaction_history(
     status: str = "SUCCESS",
     failure_reason: Optional[str] = None,
 ) -> TransactionHistory:
-    """Ghi lại lịch sử giao dịch thanh toán."""
+    """Record payment transaction history entry."""
     account = db.scalar(select(Account).where(Account.user_id == user_id))
     account_id = account.id if account else "unknown-account"
 
