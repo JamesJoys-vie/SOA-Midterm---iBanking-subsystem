@@ -1,0 +1,757 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>iBanking Wireframes</title>
+<style>
+  /* Low-fidelity wireframes: grayscale only, one accent for primary actions. */
+  :root {
+    --bg: #f4f4f2;
+    --paper: #ffffff;
+    --ink: #222;
+    --ink-2: #555;
+    --ink-3: #8a8a8a;
+    --line: #c9c9c6;
+    --line-2: #e3e3e0;
+    --fill: #ededea;
+    --accent: #2f2f2f;
+    --note: #3b6fd8;
+    --radius: 8px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  a { color: inherit; }
+
+  /* ---------- Document chrome ---------- */
+  .doc-nav {
+    position: sticky; top: 0; z-index: 10; background: var(--paper);
+    border-bottom: 1px solid var(--line); padding: 10px 24px;
+    display: flex; gap: 18px; align-items: center; flex-wrap: wrap;
+  }
+  .doc-nav strong { margin-right: 8px; }
+  .doc-nav a { text-decoration: none; color: var(--ink-2); font-size: 13px; }
+  .doc-nav a:hover { color: var(--ink); text-decoration: underline; }
+  .doc { max-width: 1240px; margin: 0 auto; padding: 24px; }
+  .intro { max-width: 760px; color: var(--ink-2); margin-bottom: 8px; }
+  .legend { display: flex; gap: 18px; flex-wrap: wrap; font-size: 12px; color: var(--ink-2); margin: 12px 0 8px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+
+  section.screen { margin: 40px 0 56px; }
+  .screen-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+  .screen-head h2 { margin: 0; font-size: 20px; }
+  .route { font: 12px ui-monospace, Consolas, monospace; background: var(--fill); padding: 2px 8px; border-radius: 4px; color: var(--ink-2); }
+  .screen-body { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 24px; align-items: start; }
+  @media (max-width: 980px) { .screen-body { grid-template-columns: 1fr; } }
+
+  .notes { background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; font-size: 13px; }
+  .notes h3 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-2); }
+  .notes ol { margin: 0; padding-left: 0; list-style: none; counter-reset: n; }
+  .notes li { position: relative; padding-left: 28px; margin-bottom: 8px; counter-increment: n; }
+  .notes li::before {
+    content: counter(n); position: absolute; left: 0; top: 1px;
+    width: 18px; height: 18px; border-radius: 50%; background: var(--note); color: #fff;
+    font-size: 11px; font-weight: 600; display: grid; place-items: center;
+  }
+  .notes code { font-size: 12px; background: var(--fill); padding: 0 4px; border-radius: 3px; }
+  .notes p { margin: 10px 0 0; color: var(--ink-2); }
+
+  /* Numbered callout dot placed on the wireframe */
+  .pin {
+    display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%;
+    background: var(--note); color: #fff; font-size: 11px; font-weight: 600; flex: none;
+    box-shadow: 0 0 0 2px var(--paper);
+  }
+  .pin.abs { position: absolute; top: -9px; left: -9px; }
+
+  /* ---------- Browser frame ---------- */
+  .browser { background: var(--paper); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .browser-bar { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--fill); border-bottom: 1px solid var(--line); }
+  .dots { display: flex; gap: 5px; }
+  .dots i { width: 9px; height: 9px; border-radius: 50%; background: var(--line); display: block; }
+  .url { flex: 1; background: var(--paper); border: 1px solid var(--line); border-radius: 5px; padding: 3px 10px; font: 12px ui-monospace, Consolas, monospace; color: var(--ink-3); }
+  .viewport { position: relative; background: #fafaf9; min-height: 200px; }
+
+  /* ---------- App shell ---------- */
+  .app-header { display: flex; align-items: center; gap: 24px; padding: 0 24px; height: 56px; background: var(--paper); border-bottom: 1px solid var(--line); position: relative; }
+  .logo { display: flex; align-items: center; gap: 8px; font-weight: 700; }
+  .logo-mark { width: 26px; height: 26px; border-radius: 6px; border: 2px solid var(--ink); }
+  .app-nav { display: flex; gap: 4px; }
+  .app-nav span { padding: 6px 12px; border-radius: 6px; color: var(--ink-2); font-size: 13px; }
+  .app-nav span.active { background: var(--fill); color: var(--ink); font-weight: 600; }
+  .user-menu { margin-left: auto; display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--ink-2); }
+  .avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--fill); border: 1px solid var(--line); }
+  .app-main { padding: 24px; max-width: 920px; margin: 0 auto; }
+  .page-title { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
+  .page-title h1 { margin: 0; font-size: 20px; }
+
+  /* ---------- Generic wire components ---------- */
+  .card { background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; position: relative; }
+  .card h4 { margin: 0 0 12px; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+  .card h4 small { font-weight: 400; color: var(--ink-3); font-size: 12px; margin-left: auto; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .stack { display: grid; gap: 16px; }
+  @media (max-width: 640px) { .grid-2 { grid-template-columns: 1fr; } }
+  .grid-3 { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 16px; }
+  @media (max-width: 760px) { .grid-3 { grid-template-columns: 1fr; } }
+  .stat .muted { font-size: 12px; }
+  .stat .big { font-size: 22px; font-weight: 700; margin: 4px 0 2px; font-variant-numeric: tabular-nums; }
+  .stat .sub { font-size: 12px; color: var(--ink-3); }
+  .pending-row { display: flex; align-items: center; gap: 14px; padding: 12px 0; border-top: 1px solid var(--line-2); flex-wrap: wrap; }
+  .pending-row:first-of-type { border-top: 0; padding-top: 0; }
+  .pending-row .who { flex: 1; min-width: 180px; }
+  .pending-row .who div:last-child { font-size: 12px; color: var(--ink-3); }
+  .card-link { margin-left: auto; font-size: 12px; font-weight: 400; text-decoration: underline; color: var(--ink-2); }
+
+  .field { margin-bottom: 12px; }
+  .label { font-size: 12px; color: var(--ink-2); margin-bottom: 4px; display: block; }
+  .input { height: 36px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); display: flex; align-items: center; padding: 0 10px; color: var(--ink-3); font-size: 13px; gap: 8px; }
+  .input.ro { background: var(--fill); border-color: var(--line-2); color: var(--ink-2); }
+  .input.focus { border: 2px solid var(--ink); color: var(--ink); }
+  .input.err { border-color: #999; border-style: dashed; }
+  .help { font-size: 12px; color: var(--ink-3); margin-top: 4px; }
+  .icon { width: 14px; height: 14px; border: 1.5px solid var(--ink-3); border-radius: 3px; flex: none; }
+  .icon.round { border-radius: 50%; }
+
+  .btn { height: 36px; padding: 0 16px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; border: 1px solid var(--ink); background: var(--paper); color: var(--ink); white-space: nowrap; }
+  .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .btn.disabled { background: var(--fill); color: var(--ink-3); border-color: var(--line); }
+  .btn.ghost { border-color: transparent; color: var(--ink-2); }
+  .btn.block { width: 100%; }
+  .btn-row { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
+
+  .kv { display: grid; grid-template-columns: 110px 1fr; gap: 8px 12px; font-size: 13px; }
+  .kv dt { color: var(--ink-3); }
+  .kv dd { margin: 0; }
+  .sum { display: grid; gap: 8px; font-size: 13px; }
+  .sum .row { display: flex; justify-content: space-between; }
+  .sum .row.total { border-top: 1px dashed var(--line); padding-top: 8px; font-weight: 700; font-size: 14px; }
+  .muted { color: var(--ink-3); }
+  .neg { text-decoration: underline wavy #999; }
+
+  .badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--ink-2); color: var(--ink-2); letter-spacing: .02em; }
+  .badge.solid { background: var(--ink-2); color: #fff; }
+  .badge.dashed { border-style: dashed; }
+
+  .balance-box { margin-top: 14px; border: 1px dashed var(--line); border-radius: 6px; padding: 12px; display: flex; justify-content: space-between; align-items: center; }
+  .balance-box b { font-size: 18px; }
+
+  .alert { border: 1px dashed var(--ink-3); background: var(--fill); border-radius: 6px; padding: 8px 10px; font-size: 12px; color: var(--ink-2); display: flex; gap: 8px; align-items: flex-start; }
+  .check { display: flex; gap: 8px; align-items: center; font-size: 13px; margin: 14px 0; }
+  .box { width: 16px; height: 16px; border: 1.5px solid var(--ink-2); border-radius: 3px; display: grid; place-items: center; font-size: 11px; }
+
+  .stepper { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-3); }
+  .stepper .step { display: flex; align-items: center; gap: 6px; }
+  .stepper .num { width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--line); display: grid; place-items: center; font-size: 11px; }
+  .stepper .step.on { color: var(--ink); font-weight: 600; }
+  .stepper .step.on .num { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .stepper .bar { width: 24px; height: 1px; background: var(--line); }
+
+  .skeleton { height: 10px; background: var(--fill); border-radius: 4px; }
+  .x-ph { border: 1px solid var(--line); background:
+      linear-gradient(to top right, transparent calc(50% - .5px), var(--line) 50%, transparent calc(50% + .5px)),
+      linear-gradient(to bottom right, transparent calc(50% - .5px), var(--line) 50%, transparent calc(50% + .5px)); }
+
+  /* ---------- Login ---------- */
+  .login-wrap { min-height: 480px; display: grid; place-items: center; padding: 32px 16px; }
+  .login-card { width: 100%; max-width: 360px; }
+  .login-card .logo { justify-content: center; margin-bottom: 4px; font-size: 18px; }
+  .login-card .sub { text-align: center; color: var(--ink-3); font-size: 13px; margin: 0 0 20px; }
+
+  /* ---------- State variants ---------- */
+  .variants { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+  @media (max-width: 900px) { .variants { grid-template-columns: 1fr; } }
+  .variant-title { font-size: 12px; font-weight: 600; color: var(--ink-2); margin: 0 0 8px; display: flex; gap: 6px; align-items: center; }
+
+  /* ---------- OTP modal ---------- */
+  .dim { position: absolute; inset: 0; background: rgba(40,40,40,.45); display: grid; place-items: center; padding: 16px; }
+  .dim-under { filter: grayscale(1); opacity: .9; }
+  .modal { width: 100%; max-width: 400px; background: var(--paper); border-radius: 10px; border: 1px solid var(--line); padding: 22px; position: relative; box-shadow: 0 10px 30px rgba(0,0,0,.15); }
+  .modal h3 { margin: 0 0 4px; font-size: 17px; }
+  .modal .close { position: absolute; top: 14px; right: 14px; width: 22px; height: 22px; border-radius: 4px; border: 1px solid var(--line); display: grid; place-items: center; font-size: 12px; color: var(--ink-3); }
+  .otp-boxes { display: flex; gap: 8px; justify-content: center; margin: 18px 0 10px; }
+  .otp-boxes span { width: 42px; height: 50px; border: 1px solid var(--line); border-radius: 6px; display: grid; place-items: center; font-size: 20px; font-weight: 600; }
+  .otp-boxes span.f { border: 2px solid var(--ink); }
+  .otp-meta { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--ink-2); margin-bottom: 16px; }
+  .timer { font: 600 13px ui-monospace, Consolas, monospace; border: 1px solid var(--line); padding: 2px 8px; border-radius: 4px; }
+  .link { text-decoration: underline; color: var(--ink-2); }
+  .link.off { color: var(--ink-3); text-decoration: none; }
+
+  /* ---------- Result ---------- */
+  .result { max-width: 480px; margin: 8px auto; text-align: center; }
+  .result-icon { width: 56px; height: 56px; border-radius: 50%; border: 2px solid var(--ink); margin: 6px auto 12px; display: grid; place-items: center; font-size: 26px; font-weight: 700; }
+  .result h2 { margin: 0 0 4px; font-size: 19px; }
+  .result .kv { text-align: left; grid-template-columns: 130px 1fr; margin: 18px 0; padding: 14px; border: 1px solid var(--line-2); border-radius: 6px; background: #fcfcfb; }
+  .result .btn-row { justify-content: center; }
+
+  /* ---------- History ---------- */
+  .toolbar { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .toolbar .input { min-width: 200px; flex: 1; }
+  .toolbar .select { width: 160px; justify-content: space-between; flex: none; }
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 580px; }
+  th { text-align: left; font-size: 12px; font-weight: 600; color: var(--ink-2); padding: 10px 12px; background: var(--fill); border-bottom: 1px solid var(--line); }
+  td { padding: 11px 12px; border-bottom: 1px solid var(--line-2); }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  td.mono { font-family: ui-monospace, Consolas, monospace; font-size: 12px; color: var(--ink-2); }
+  .pager { display: flex; justify-content: space-between; align-items: center; padding: 12px 4px 0; font-size: 12px; color: var(--ink-3); }
+  .pager .pages { display: flex; gap: 4px; }
+  .pager .pages span { min-width: 26px; height: 26px; border: 1px solid var(--line); border-radius: 4px; display: grid; place-items: center; }
+  .pager .pages span.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .empty { text-align: center; padding: 28px 12px; color: var(--ink-3); }
+  .empty .x-ph { width: 64px; height: 48px; margin: 0 auto 10px; border-radius: 6px; }
+
+  /* ---------- Hide / show amounts ---------- */
+  .eye-btn { width: 26px; height: 26px; border-radius: 6px; border: 1px solid var(--line); background: var(--paper); color: var(--ink-2); display: inline-grid; place-items: center; padding: 0; cursor: pointer; vertical-align: middle; }
+  .eye-btn:hover { border-color: var(--ink-2); color: var(--ink); }
+  .eye-btn .slash { display: none; }
+  .hide-amounts .eye-btn .slash { display: inline; }
+  .money { white-space: nowrap; }
+  .hide-amounts .money { letter-spacing: .08em; color: var(--ink-2); }
+  .doc-toggle { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-2); }
+
+  /* ---------- Component inventory ---------- */
+  .inv { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+  .inv .card h4 { margin-bottom: 6px; }
+  .inv p { margin: 0; color: var(--ink-2); font-size: 13px; }
+  .inv code { font-size: 12px; background: var(--fill); padding: 0 4px; border-radius: 3px; }
+
+  /* Flow strip */
+  .flow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; margin: 16px 0 0; }
+  .flow span.node { border: 1px solid var(--line); background: var(--paper); border-radius: 6px; padding: 6px 10px; }
+  .flow span.arr { color: var(--ink-3); }
+</style>
+</head>
+<body>
+
+<nav class="doc-nav">
+  <strong>iBanking wireframes</strong>
+  <a href="#login">1. Login</a>
+  <a href="#home">2. Home</a>
+  <a href="#pay">3. Tuition payment</a>
+  <a href="#states">3b. Lookup states</a>
+  <a href="#otp">4. OTP modal</a>
+  <a href="#result">5. Result</a>
+  <a href="#history">6. History</a>
+  <a href="#components">Components</a>
+  <span class="doc-toggle">Preview amounts: <b data-amount-state>shown</b> <button type="button" class="eye-btn" data-toggle-amounts title="Show / hide amounts" aria-label="Show / hide amounts"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/><line class="slash" x1="3" y1="3" x2="21" y2="21"/></svg></button></span>
+</nav>
+
+<div class="doc">
+  <p class="intro">
+    Low-fidelity layouts for the Phase 4 frontend (React + Tailwind). Grayscale on purpose: these fix structure,
+    content and states, not visual style. Every screen except Login shares the same app shell (header + centered
+    content column, max width ~920px). Blue numbered pins match the notes on the right of each screen.
+  </p>
+  <div class="flow">
+    <span class="node">/login</span><span class="arr">&rarr;</span>
+    <span class="node">/home &middot; overview</span><span class="arr">&rarr;</span>
+    <span class="node">/pay &middot; fill details</span><span class="arr">&rarr;</span>
+    <span class="node">OTP modal</span><span class="arr">&rarr;</span>
+    <span class="node">Result (success / failed)</span><span class="arr">&rarr;</span>
+    <span class="node">/history</span>
+  </div>
+  <div class="legend">
+    <span><span class="btn primary" style="height:18px;padding:0 8px;font-size:11px">Primary</span> main action (one per view)</span>
+    <span><span class="input ro" style="height:20px;width:60px"></span> read-only data</span>
+    <span><span class="pin">1</span> annotation</span>
+    <span><button type="button" class="eye-btn" data-toggle-amounts title="Show / hide amounts" aria-label="Show / hide amounts"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/><line class="slash" x1="3" y1="3" x2="21" y2="21"/></svg></button> hide / show all amounts (clickable here)</span>
+  </div>
+
+  <!-- ================= 1. LOGIN ================= -->
+  <section class="screen" id="login">
+    <div class="screen-head"><h2>1. Login</h2><span class="route">/login</span></div>
+    <div class="screen-body">
+      <div class="browser">
+        <div class="browser-bar"><div class="dots"><i></i><i></i><i></i></div><div class="url">ibanking.local/login</div></div>
+        <div class="viewport">
+          <div class="login-wrap">
+            <div class="card login-card">
+              <div class="logo"><span class="logo-mark"></span>iBanking</div>
+              <p class="sub">Sign in to pay tuition</p>
+              <div class="field">
+                <span class="label">Username</span>
+                <div class="input focus"><span class="icon round"></span>alice</div>
+              </div>
+              <div class="field" style="position:relative">
+                <span class="label">Password</span>
+                <div class="input"><span class="icon"></span>&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;<span style="margin-left:auto" class="link">Show</span></div>
+              </div>
+              <div class="alert" style="margin-bottom:12px;position:relative"><span class="pin abs">1</span><span class="icon round"></span>Invalid username or password.</div>
+              <div style="position:relative"><span class="pin abs">2</span><span class="btn primary block">Sign in</span></div>
+              <p class="help" style="text-align:center;margin-top:14px;position:relative">Demo accounts: alice &middot; bob &middot; carol</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <aside class="notes">
+        <h3>Notes</h3>
+        <ol>
+          <li>Error banner only after a failed <code>POST /auth/login</code> (401). Hidden by default.</li>
+          <li>Disabled + "Signing in&hellip;" while submitting. Enter key submits.</li>
+        </ol>
+        <p>Both fields required (inline "Required" under the field). On success: store token, redirect to <code>/home</code>.</p>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ================= 2. HOME ================= -->
+  <section class="screen" id="home">
+    <div class="screen-head"><h2>2. Home (overview)</h2><span class="route">/home</span></div>
+    <div class="screen-body">
+      <div class="browser">
+        <div class="browser-bar"><div class="dots"><i></i><i></i><i></i></div><div class="url">ibanking.local/home</div></div>
+        <div class="viewport">
+          <header class="app-header">
+            <span class="pin abs" style="top:18px;left:6px">1</span>
+            <div class="logo"><span class="logo-mark"></span>iBanking</div>
+            <nav class="app-nav"><span class="active">Home</span><span>Pay tuition</span><span>History</span></nav>
+            <div class="user-menu"><button type="button" class="eye-btn" data-toggle-amounts title="Show / hide amounts" aria-label="Show / hide amounts"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/><line class="slash" x1="3" y1="3" x2="21" y2="21"/></svg></button><span class="avatar"></span>Nguyen Van A<span class="btn ghost" style="height:28px">Sign out</span></div>
+          </header>
+          <div class="app-main">
+            <div class="page-title">
+              <div>
+                <h1>Welcome back, Nguyen Van A</h1>
+                <div class="muted" style="font-size:13px">Here is the status of your account.</div>
+              </div>
+              <span class="btn primary">Pay tuition</span>
+            </div>
+
+            <div class="stack">
+              <!-- Stat row -->
+              <div class="grid-3">
+                <div class="card stat">
+                  <span class="pin abs">2</span>
+                  <div class="muted" style="display:flex;align-items:center;gap:8px;position:relative">Available balance <button type="button" class="eye-btn" data-toggle-amounts title="Show / hide amounts" aria-label="Show / hide amounts"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/><line class="slash" x1="3" y1="3" x2="21" y2="21"/></svg></button><span class="pin">6</span></div>
+                  <div class="big"><span class="money">30,000,000 ₫</span></div>
+                  <div class="sub">Account &middot; alice</div>
+                </div>
+                <div class="card stat">
+                  <span class="pin abs">3</span>
+                  <div class="muted">Successful payments</div>
+                  <div class="big">2</div>
+                  <div class="sub"><span class="money">33,500,000 ₫</span> in total</div>
+                </div>
+                <div class="card stat">
+                  <div class="muted">Not completed</div>
+                  <div class="big">2</div>
+                  <div class="sub">Failed, expired or cancelled</div>
+                </div>
+              </div>
+
+              <!-- Pending OTP -->
+              <div class="card">
+                <span class="pin abs">4</span>
+                <h4>Waiting for OTP <span class="badge">1</span><small>finish or cancel before it expires</small></h4>
+                <div class="pending-row">
+                  <div class="who">
+                    <div><b>52100002</b> &middot; Hoang Thu E</div>
+                    <div>Started 14:20 &middot; expires in <span class="timer" style="font-size:11px;padding:0 6px">03:12</span></div>
+                  </div>
+                  <b><span class="money">18,500,000 ₫</span></b>
+                  <div class="btn-row"><span class="btn ghost">Cancel</span><span class="btn">Resume</span></div>
+                </div>
+              </div>
+
+              <!-- Recent -->
+              <div class="card">
+                <span class="pin abs">5</span>
+                <h4>Recent transactions <span class="card-link">View all &rarr;</span></h4>
+                <div class="table-wrap">
+                  <table style="min-width:520px">
+                    <thead><tr><th>Date</th><th>MSSV</th><th class="num">Amount</th><th>Status</th></tr></thead>
+                    <tbody>
+                      <tr><td>09/10/2026 14:32</td><td>52100001</td><td class="num"><span class="money">15,000,000 ₫</span></td><td><span class="badge solid">SUCCESS</span></td></tr>
+                      <tr><td>09/10/2026 14:20</td><td>52100002</td><td class="num"><span class="money">18,500,000 ₫</span></td><td><span class="badge">PENDING_OTP</span></td></tr>
+                      <tr><td>08/10/2026 10:11</td><td>52100003</td><td class="num"><span class="money">12,000,000 ₫</span></td><td><span class="badge dashed">EXPIRED</span></td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <aside class="notes">
+        <h3>Notes</h3>
+        <ol>
+          <li><b>Home</b> is the first nav item and the landing page after login. The logo also links here.</li>
+          <li>From <code>GET /accounts/me</code>. The page-level "Pay tuition" button is the one primary action.</li>
+          <li>Counts and total computed in the browser from <code>GET /transactions</code> (SUCCESS vs FAILED / EXPIRED / CANCELLED). No new endpoint.</li>
+          <li>Transactions in <code>PENDING_OTP</code>. <b>Resume</b> opens <code>/pay</code> with the OTP modal for that transaction (user can press "Resend code" if the email is lost). <b>Cancel</b> asks to confirm, then <code>POST /transactions/{id}/cancel</code>. Card is hidden when nothing is pending.</li>
+          <li>Last 5 transactions, newest first; "View all" goes to <code>/history</code>. New user: replaced by the "No transactions yet" empty state from History.</li>
+          <li><b>Hide / show amounts.</b> The eye button masks every money value (balance, totals, transaction amounts) as <code>•••••••• ₫</code>. Same button in the header on every page and next to each balance. One global state, remembered per browser (<code>localStorage</code>), <b>hidden by default</b>.</li>
+        </ol>
+        <p>One <code>GET /transactions</code> request feeds tiles 3, card 4 and table 5, and is shared (cached) with the History page. Stat row is 3 columns on desktop, stacked on mobile. Loading: skeleton tiles and rows.</p>
+        <p>Out of scope (future work): tuition due dates and payment-method management.</p>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ================= 3. PAY ================= -->
+  <section class="screen" id="pay">
+    <div class="screen-head"><h2>3. Tuition payment</h2><span class="route">/pay</span></div>
+    <div class="screen-body">
+      <div class="browser">
+        <div class="browser-bar"><div class="dots"><i></i><i></i><i></i></div><div class="url">ibanking.local/pay</div></div>
+        <div class="viewport">
+          <header class="app-header">
+            <span class="pin abs" style="top:18px;left:6px">1</span>
+            <div class="logo"><span class="logo-mark"></span>iBanking</div>
+            <nav class="app-nav"><span>Home</span><span class="active">Pay tuition</span><span>History</span></nav>
+            <div class="user-menu"><button type="button" class="eye-btn" data-toggle-amounts title="Show / hide amounts" aria-label="Show / hide amounts"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/><line class="slash" x1="3" y1="3" x2="21" y2="21"/></svg></button><span class="avatar"></span>Nguyen Van A<span class="btn ghost" style="height:28px">Sign out</span></div>
+          </header>
+          <div class="app-main">
+            <div class="page-title">
+              <h1>Tuition payment</h1>
+              <div class="stepper" style="position:relative">
+                <span class="pin abs" style="left:-24px;top:1px">2</span>
+                <span class="step on"><span class="num">1</span>Details</span><span class="bar"></span>
+                <span class="step"><span class="num">2</span>Verify OTP</span><span class="bar"></span>
+                <span class="step"><span class="num">3</span>Result</span>
+              </div>
+            </div>
+
+            <div class="stack">
+              <div class="grid-2">
+                <!-- Payer -->
+                <div class="card">
+                  <span class="pin abs">3</span>
+                  <h4>Payer information <small>read-only</small></h4>
+                  <div class="field"><span class="label">Full name</span><div class="input ro">Nguyen Van A</div></div>
+                  <div class="field"><span class="label">Phone number</span><div class="input ro">0900 000 001</div></div>
+                  <div class="field" style="margin-bottom:0"><span class="label">Email</span><div class="input ro">alice@example.com</div></div>
+                  <div class="balance-box"><span class="muted" style="display:inline-flex;align-items:center;gap:8px">Available balance <button type="button" class="eye-btn" data-toggle-amounts title="Show / hide amounts" aria-label="Show / hide amounts"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/><line class="slash" x1="3" y1="3" x2="21" y2="21"/></svg></button></span><b><span class="money">30,000,000 ₫</span></b></div>
+                </div>
+
+                <!-- Tuition -->
+                <div class="card">
+                  <span class="pin abs">4</span>
+                  <h4>Tuition details</h4>
+                  <div class="field">
+                    <span class="label">Student ID (MSSV)</span>
+                    <div class="input focus"><span class="icon round"></span>52100001</div>
+                    <div class="help">Type the 8-digit MSSV &mdash; looks up automatically.</div>
+                  </div>
+                  <div class="field"><span class="label">Student name</span><div class="input ro">Pham Minh D</div></div>
+                  <div class="grid-2" style="gap:12px">
+                    <div class="field" style="margin-bottom:0"><span class="label">Term</span><div class="input ro">2025-HK1</div></div>
+                    <div class="field" style="margin-bottom:0"><span class="label">Status</span><div class="input ro" style="justify-content:flex-start"><span class="badge">UNPAID</span></div></div>
+                  </div>
+                  <div class="balance-box"><span class="muted">Amount due</span><b><span class="money">15,000,000 ₫</span></b></div>
+                </div>
+              </div>
+
+              <!-- Confirm -->
+              <div class="card">
+                <span class="pin abs">5</span>
+                <h4>Confirm payment</h4>
+                <div class="grid-2" style="align-items:end">
+                  <div class="sum">
+                    <div class="row"><span class="muted">Available balance</span><span><span class="money">30,000,000 ₫</span></span></div>
+                    <div class="row"><span class="muted">Tuition amount</span><span>&minus; <span class="money">15,000,000 ₫</span></span></div>
+                    <div class="row total"><span>Balance after payment</span><span><span class="money">15,000,000 ₫</span></span></div>
+                  </div>
+                  <div>
+                    <div class="check" style="position:relative"><span class="pin" style="margin-right:2px">6</span><span class="box">&#10003;</span>I agree to the <span class="link">terms &amp; conditions</span></div>
+                    <div class="btn-row"><span class="btn">Clear</span><span class="btn primary">Confirm transaction</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <aside class="notes">
+        <h3>Notes</h3>
+        <ol>
+          <li><b>App shell</b>, shared by all signed-in pages. Active nav item highlighted; name from <code>/users/me</code>.</li>
+          <li>Stepper shows where the user is in the flow. Steps 2&ndash;3 light up via the modal and result view.</li>
+          <li>Loaded from <code>GET /users/me</code> + <code>GET /accounts/me</code>. Skeleton rows while loading. Nothing editable.</li>
+          <li>MSSV input, debounced ~400ms &rarr; <code>GET /tuitions/{mssv}</code>. Fields below stay empty until a match. Error states in 3b.</li>
+          <li>Live summary. "Balance after" recalculates when the tuition changes.</li>
+          <li>Confirm is enabled only if: tuition is UNPAID, balance &ge; amount, terms are ticked. Click &rarr; <code>POST /transactions</code> (Idempotency-Key) &rarr; opens OTP modal.</li>
+        </ol>
+        <p>Amounts here (balance, amount due, summary, OTP recap) follow the global hide / show state; the eye next to the balance is one click away before confirming.</p>
+        <p>Two columns on desktop, stacked under ~640px. Confirm card always spans full width so the main action sits at the bottom.</p>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ================= 2b. STATES ================= -->
+  <section class="screen" id="states">
+    <div class="screen-head"><h2>3b. Tuition lookup states</h2><span class="route">/pay &middot; Tuition + Confirm cards</span></div>
+    <div class="variants">
+      <div>
+        <p class="variant-title"><span class="pin">A</span>Not found (404)</p>
+        <div class="card">
+          <h4>Tuition details</h4>
+          <div class="field"><span class="label">Student ID (MSSV)</span><div class="input err">52199999</div></div>
+          <div class="alert"><span class="icon round"></span>No tuition found for MSSV 52199999.</div>
+          <div class="field" style="margin-top:12px"><span class="label">Student name</span><div class="input ro">&mdash;</div></div>
+          <div class="check"><span class="box"></span>I agree to the terms</div>
+          <span class="btn disabled block">Confirm transaction</span>
+        </div>
+      </div>
+      <div>
+        <p class="variant-title"><span class="pin">B</span>Already paid / in progress (409)</p>
+        <div class="card">
+          <h4>Tuition details</h4>
+          <div class="field"><span class="label">Student ID (MSSV)</span><div class="input">52100003</div></div>
+          <div class="field"><span class="label">Student name</span><div class="input ro">Vo Quoc F</div></div>
+          <div class="field"><span class="label">Status</span><div class="input ro" style="justify-content:flex-start"><span class="badge solid">PAID</span></div></div>
+          <div class="alert"><span class="icon round"></span>This tuition is already paid (or a payment is in progress).</div>
+          <div style="margin-top:12px"><span class="btn disabled block">Confirm transaction</span></div>
+        </div>
+      </div>
+      <div>
+        <p class="variant-title"><span class="pin">C</span>Insufficient balance (422)</p>
+        <div class="card">
+          <h4>Confirm payment</h4>
+          <div class="sum">
+            <div class="row"><span class="muted">Available balance</span><span><span class="money">5,000,000 ₫</span></span></div>
+            <div class="row"><span class="muted">Tuition amount</span><span>&minus; <span class="money">40,000,000 ₫</span></span></div>
+            <div class="row total"><span>Balance after</span><span class="neg">&minus;<span class="money">35,000,000 ₫</span></span></div>
+          </div>
+          <div class="alert" style="margin-top:12px"><span class="icon round"></span>Insufficient balance. You need <span class="money">35,000,000 ₫</span> more.</div>
+          <div class="check"><span class="box">&#10003;</span>I agree to the terms</div>
+          <span class="btn disabled block">Confirm transaction</span>
+        </div>
+      </div>
+    </div>
+    <div class="notes" style="margin-top:16px">
+      <h3>Notes</h3>
+      <p style="margin:0">Errors are shown inline in the card that caused them, never as a page-level popup. The Confirm button is
+      always visible but disabled, with the reason directly above it. Loading state (while debouncing/fetching): spinner icon in the MSSV
+      input + skeleton rows in place of the read-only fields.</p>
+    </div>
+  </section>
+
+  <!-- ================= 3. OTP ================= -->
+  <section class="screen" id="otp">
+    <div class="screen-head"><h2>4. OTP verification (modal)</h2><span class="route">/pay &middot; overlay</span></div>
+    <div class="screen-body">
+      <div class="browser">
+        <div class="browser-bar"><div class="dots"><i></i><i></i><i></i></div><div class="url">ibanking.local/pay</div></div>
+        <div class="viewport" style="min-height:520px">
+          <div class="dim-under">
+            <header class="app-header">
+              <div class="logo"><span class="logo-mark"></span>iBanking</div>
+              <nav class="app-nav"><span>Home</span><span class="active">Pay tuition</span><span>History</span></nav>
+              <div class="user-menu"><button type="button" class="eye-btn" data-toggle-amounts title="Show / hide amounts" aria-label="Show / hide amounts"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/><line class="slash" x1="3" y1="3" x2="21" y2="21"/></svg></button><span class="avatar"></span>Nguyen Van A</div>
+            </header>
+            <div class="app-main">
+              <div class="page-title"><h1>Tuition payment</h1></div>
+              <div class="grid-2">
+                <div class="card"><div class="skeleton" style="width:50%;margin-bottom:14px"></div><div class="skeleton" style="margin-bottom:10px"></div><div class="skeleton" style="margin-bottom:10px"></div><div class="skeleton" style="width:70%"></div></div>
+                <div class="card"><div class="skeleton" style="width:50%;margin-bottom:14px"></div><div class="skeleton" style="margin-bottom:10px"></div><div class="skeleton" style="margin-bottom:10px"></div><div class="skeleton" style="width:70%"></div></div>
+              </div>
+            </div>
+          </div>
+          <div class="dim">
+            <div class="modal">
+              <span class="close">&#10005;</span>
+              <div class="stepper" style="margin-bottom:12px"><span class="step"><span class="num">1</span></span><span class="bar"></span><span class="step on"><span class="num">2</span>Verify OTP</span><span class="bar"></span><span class="step"><span class="num">3</span></span></div>
+              <h3>Enter verification code</h3>
+              <p class="muted" style="margin:0;font-size:13px">We sent a 6-digit code to <b style="color:var(--ink)">a****@example.com</b></p>
+              <div style="font-size:13px;margin-top:12px;padding:10px;border:1px solid var(--line-2);border-radius:6px;display:flex;justify-content:space-between;position:relative">
+                <span class="pin abs">1</span>
+                <span class="muted">MSSV 52100001 &middot; Pham Minh D</span><b><span class="money">15,000,000 ₫</span></b>
+              </div>
+              <div class="otp-boxes" style="position:relative;align-items:center">
+                <span class="pin" style="width:18px;height:18px;border:0;font-size:11px;margin-right:4px">2</span>
+                <span>4</span><span>8</span><span>1</span><span class="f">|</span><span></span><span></span>
+              </div>
+              <div class="otp-meta" style="position:relative">
+                <span>Code expires in <span class="timer">04:37</span> <span class="pin" style="vertical-align:middle">3</span></span>
+                <span><span class="link off">Resend code (0:42)</span> <span class="pin" style="vertical-align:middle">4</span></span>
+              </div>
+              <div class="alert" style="margin-bottom:14px"><span class="icon round"></span>Incorrect code. 2 attempts left.</div>
+              <div class="btn-row" style="position:relative"><span class="pin abs" style="left:-9px">5</span><span class="btn">Cancel payment</span><span class="btn primary">Verify &amp; pay</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <aside class="notes">
+        <h3>Notes</h3>
+        <ol>
+          <li>Recap of what is being paid, so the user knows what they confirm.</li>
+          <li>6 single-digit boxes: auto-advance, paste fills all, Backspace goes back. Numeric keyboard on mobile.</li>
+          <li>Countdown from <code>otp_expires_in</code> (5 min). At 00:00 the boxes disable and "Code expired &mdash; resend" shows.</li>
+          <li>Resend disabled during a short cooldown, then <code>POST /transactions/{id}/resend-otp</code>; 429 shows "Too many requests". Timer resets.</li>
+          <li>Verify enabled when 6 digits entered &rarr; <code>POST /verify-otp</code>. Cancel &rarr; <code>POST /cancel</code>, closes modal. 400 shows inline error (shown here).</li>
+        </ol>
+        <p>Modal can't be closed by clicking the backdrop (avoid losing the transaction by accident); &#10005; asks "Cancel this payment?".</p>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ================= 4. RESULT ================= -->
+  <section class="screen" id="result">
+    <div class="screen-head"><h2>5. Result</h2><span class="route">/pay &middot; replaces the form after verify</span></div>
+    <div class="screen-body">
+      <div class="browser">
+        <div class="browser-bar"><div class="dots"><i></i><i></i><i></i></div><div class="url">ibanking.local/pay</div></div>
+        <div class="viewport">
+          <header class="app-header">
+            <div class="logo"><span class="logo-mark"></span>iBanking</div>
+            <nav class="app-nav"><span>Home</span><span class="active">Pay tuition</span><span>History</span></nav>
+            <div class="user-menu"><button type="button" class="eye-btn" data-toggle-amounts title="Show / hide amounts" aria-label="Show / hide amounts"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/><line class="slash" x1="3" y1="3" x2="21" y2="21"/></svg></button><span class="avatar"></span>Nguyen Van A<span class="btn ghost" style="height:28px">Sign out</span></div>
+          </header>
+          <div class="app-main">
+            <div class="grid-2">
+              <div class="card result">
+                <span class="pin abs">1</span>
+                <div class="result-icon">&#10003;</div>
+                <h2>Payment successful</h2>
+                <p class="muted" style="margin:0;font-size:13px">A receipt was sent to your email.</p>
+                <dl class="kv">
+                  <dt>Transaction ID</dt><dd class="mono" style="font-family:ui-monospace,monospace;font-size:12px">7f3a&hellip;c21e</dd>
+                  <dt>Student</dt><dd>52100001 &middot; Pham Minh D</dd>
+                  <dt>Term</dt><dd>2025-HK1</dd>
+                  <dt>Amount</dt><dd><b><span class="money">15,000,000 ₫</span></b></dd>
+                  <dt>New balance</dt><dd><span class="money">15,000,000 ₫</span></dd>
+                  <dt>Completed</dt><dd>09/10/2026 14:32</dd>
+                </dl>
+                <div class="btn-row"><span class="btn">Back to home</span><span class="btn primary">New payment</span></div>
+              </div>
+              <div class="card result">
+                <span class="pin abs">2</span>
+                <div class="result-icon" style="border-style:dashed">&#10005;</div>
+                <h2>Payment failed</h2>
+                <p class="muted" style="margin:0;font-size:13px">No money was taken from your account.</p>
+                <dl class="kv">
+                  <dt>Reason</dt><dd>Verification code expired</dd>
+                  <dt>Student</dt><dd>52100001 &middot; Pham Minh D</dd>
+                  <dt>Amount</dt><dd><span class="money">15,000,000 ₫</span></dd>
+                  <dt>Status</dt><dd><span class="badge dashed">EXPIRED</span></dd>
+                </dl>
+                <div class="btn-row"><span class="btn">Back to form</span><span class="btn primary">Try again</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <aside class="notes">
+        <h3>Notes</h3>
+        <ol>
+          <li><b>Success</b>: data from the <code>verify-otp</code> response (<code>transaction</code>, <code>balance_after</code>). "New payment" resets the form and refetches balance.</li>
+          <li><b>Failure</b>: shown for FAILED / EXPIRED / CANCELLED, with <code>failure_reason</code> in plain words. "Try again" keeps the MSSV and starts a new attempt (new Idempotency-Key).</li>
+        </ol>
+        <p>Only one of the two cards is shown at a time; they're side by side here for comparison. Centered, single column, max ~480px.</p>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ================= 5. HISTORY ================= -->
+  <section class="screen" id="history">
+    <div class="screen-head"><h2>6. Transaction history</h2><span class="route">/history</span></div>
+    <div class="screen-body">
+      <div class="browser">
+        <div class="browser-bar"><div class="dots"><i></i><i></i><i></i></div><div class="url">ibanking.local/history</div></div>
+        <div class="viewport">
+          <header class="app-header">
+            <div class="logo"><span class="logo-mark"></span>iBanking</div>
+            <nav class="app-nav"><span>Home</span><span>Pay tuition</span><span class="active">History</span></nav>
+            <div class="user-menu"><button type="button" class="eye-btn" data-toggle-amounts title="Show / hide amounts" aria-label="Show / hide amounts"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/><line class="slash" x1="3" y1="3" x2="21" y2="21"/></svg></button><span class="avatar"></span>Nguyen Van A<span class="btn ghost" style="height:28px">Sign out</span></div>
+          </header>
+          <div class="app-main">
+            <div class="page-title">
+              <h1>Transaction history</h1>
+              <span class="btn">Refresh</span>
+            </div>
+            <div class="card">
+              <div class="toolbar" style="position:relative">
+                <span class="pin abs">1</span>
+                <div class="input"><span class="icon round"></span>Search by MSSV</div>
+                <div class="input select">All statuses <span>&#9662;</span></div>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead><tr><th><span class="pin" style="margin-right:6px;vertical-align:middle">2</span>Date</th><th>Transaction ID</th><th>MSSV</th><th class="num">Amount</th><th>Status</th></tr></thead>
+                  <tbody>
+                    <tr><td>09/10/2026 14:32</td><td class="mono">7f3a&hellip;c21e</td><td>52100001</td><td class="num"><span class="money">15,000,000 ₫</span></td><td><span class="badge solid">SUCCESS</span></td></tr>
+                    <tr><td>09/10/2026 14:20</td><td class="mono">a91b&hellip;04f2</td><td>52100001</td><td class="num"><span class="money">15,000,000 ₫</span></td><td><span class="badge dashed">EXPIRED</span></td></tr>
+                    <tr><td>08/10/2026 09:05</td><td class="mono">3c7d&hellip;9e88</td><td>52100002</td><td class="num"><span class="money">18,500,000 ₫</span></td><td><span class="badge dashed">CANCELLED</span></td></tr>
+                    <tr><td>08/10/2026 08:58</td><td class="mono">e210&hellip;7b1a</td><td>52100002</td><td class="num"><span class="money">18,500,000 ₫</span></td><td><span class="badge">PENDING_OTP</span></td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="pager" style="position:relative">
+                <span>Showing 1&ndash;4 of 4</span>
+                <div class="pages"><span>&lsaquo;</span><span class="on">1</span><span>&rsaquo;</span></div>
+              </div>
+            </div>
+
+            <p class="variant-title" style="margin-top:20px"><span class="pin">3</span>Empty state</p>
+            <div class="card">
+              <div class="empty">
+                <div class="x-ph"></div>
+                <div style="color:var(--ink);font-weight:600">No transactions yet</div>
+                <div style="font-size:13px;margin:4px 0 12px">Payments you make will appear here.</div>
+                <span class="btn primary">Pay tuition</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <aside class="notes">
+        <h3>Notes</h3>
+        <ol>
+          <li>Client-side filter on the fetched list (MSSV contains, status equals). Small dataset, no server query needed.</li>
+          <li>Data from <code>GET /transactions</code>, newest first. Amount right-aligned. Badge style: solid = SUCCESS, outline = in progress, dashed = ended without paying. Row click (optional) opens the same details as the Result card.</li>
+          <li>Shown when the list is empty. Loading: 4 skeleton rows. Error: inline alert with "Retry".</li>
+        </ol>
+        <p>Table scrolls horizontally on narrow screens instead of squeezing columns.</p>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ================= COMPONENTS ================= -->
+  <section class="screen" id="components">
+    <div class="screen-head"><h2>Component inventory</h2><span class="route">frontend/src/components</span></div>
+    <div class="inv">
+      <div class="card"><h4>AppLayout</h4><p>Header (logo, nav, user name, Sign out) + centered <code>&lt;main&gt;</code>. Wraps every protected route.</p></div>
+      <div class="card"><h4>StatCard</h4><p>Label + big number + small caption. Used in the Home stat row.</p></div>
+      <div class="card"><h4>PendingPaymentsCard</h4><p>Lists <code>PENDING_OTP</code> transactions with countdown, Resume and Cancel. Hidden when empty.</p></div>
+      <div class="card"><h4>Card</h4><p>White box with title + optional right-side hint. Used for every section.</p></div>
+      <div class="card"><h4>Field / ReadOnlyField</h4><p>Label + input (or gray read-only value) + help / error text.</p></div>
+      <div class="card"><h4>Button</h4><p>Variants: <code>primary</code>, <code>secondary</code>, <code>ghost</code>; <code>loading</code> and <code>disabled</code> states.</p></div>
+      <div class="card"><h4>Alert</h4><p>Inline message inside a card (error / info). Never a page-level popup.</p></div>
+      <div class="card"><h4>StatusBadge</h4><p>Maps UNPAID, PAID, PENDING_OTP, PROCESSING, SUCCESS, FAILED, CANCELLED, EXPIRED to a style.</p></div>
+      <div class="card"><h4>Stepper</h4><p>Details &rarr; Verify OTP &rarr; Result, used on /pay and in the modal.</p></div>
+      <div class="card"><h4>Money</h4><p>Formats VND with thousand separators + "₫"; tabular digits. Renders <code>•••••••• ₫</code> when amounts are hidden (fixed width, <code>aria-label="Amount hidden"</code>). Every ₫ value goes through it.</p></div>
+      <div class="card"><h4>AmountVisibility (context + EyeToggle)</h4><p>Global <code>hidden</code> flag + toggle, persisted in <code>localStorage</code>, default hidden. Visual privacy only: values are still in the API responses.</p></div>
+      <div class="card"><h4>PayerCard / TuitionCard / ConfirmCard</h4><p>The three sections of /pay. ConfirmCard owns the enable-rule for the button.</p></div>
+      <div class="card"><h4>OtpModal + OtpInput</h4><p>6-box input, countdown, resend cooldown, verify / cancel.</p></div>
+      <div class="card"><h4>ResultCard</h4><p>Success / failure variants, reused for history row details.</p></div>
+      <div class="card"><h4>HistoryTable</h4><p>Toolbar filters, table, empty / loading / error states. Compact mode (no toolbar, 5 rows) on Home.</p></div>
+    </div>
+  </section>
+</div>
+<script>
+  // Wireframe-only demo of the global hide / show amounts state.
+  (function () {
+    const MASK = '•••••••• ₫';
+    const moneys = document.querySelectorAll('.money');
+    moneys.forEach(el => { el.dataset.v = el.textContent; });
+    let hidden = false;
+    function render() {
+      document.body.classList.toggle('hide-amounts', hidden);
+      moneys.forEach(el => {
+        el.textContent = hidden ? MASK : el.dataset.v;
+        if (hidden) el.setAttribute('aria-label', 'Amount hidden'); else el.removeAttribute('aria-label');
+      });
+      document.querySelectorAll('[data-amount-state]').forEach(el => { el.textContent = hidden ? 'hidden' : 'shown'; });
+    }
+    document.addEventListener('click', e => {
+      if (e.target.closest('[data-toggle-amounts]')) { hidden = !hidden; render(); }
+    });
+    render();
+  })();
+</script>
+</body>
+</html>

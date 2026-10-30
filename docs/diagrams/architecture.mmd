@@ -1,0 +1,50 @@
+flowchart LR
+  %% Solid arrows: synchronous REST/HTTP calls. Dashed arrows: asynchronous events on Redis Streams.
+  %% Service responsibilities and the full call list: docs/design/services.md
+  User([Payer's browser]) -->|HTTPS| WEB
+  NG[Ngrok tunnel - optional, profile public] -.-> WEB
+  WEB[web: nginx + React SPA] -->|"/api/*"| GW
+
+  subgraph EDGE [Edge]
+    GW[API Gateway<br/>JWT check, X-User-Id, rate limits]
+  end
+
+  subgraph SERVICES [Microservices - internal network only]
+    US[User Service<br/>login, profile]
+    TS[Tuition Service<br/>lookup, reservation hold]
+    PS[Payment Service<br/>account, transactions, saga]
+    OTP[OTP Service<br/>issue / verify OTP]
+    NS[Notification Service<br/>emails]
+    subgraph PSW [Payment Service background threads]
+      OR[Outbox relay]
+      EJ[Expiry / reconcile job]
+    end
+  end
+
+  GW -->|"auth/*, users/*"| US
+  GW -->|"tuitions/*"| TS
+  GW -->|"accounts/*, transactions/*"| PS
+  GW -->|INCR rate-limit counters| RL
+
+  PS -->|"GET /internal/users/{id} (payer email)"| US
+  PS -->|"GET /tuitions/{mssv}; POST /internal/tuitions/{id}/reserve, commit, release"| TS
+  PS -->|"POST /internal/otp, /internal/otp/verify"| OTP
+  EJ -->|"expire PENDING_OTP, retry commit of PROCESSING"| TS
+
+  OR -.->|"XADD payment.completed"| RS
+  OTP -.->|"XADD otp.requested"| RS
+  RS -.->|"XREADGROUP / XACK, consumer group notification"| NS
+  NS -->|SMTP| MAIL[(Mail server)]
+
+  US --> DB1[(MySQL users_db)]
+  TS --> DB3[(MySQL tuition_db)]
+  PS --> DB2[(MySQL payments_db)]
+  OR -->|read outbox_events| DB2
+  EJ --> DB2
+  OTP -->|OTP keys with TTL, Lua scripts| R
+
+  subgraph REDIS [Redis 7 - AOF on]
+    R[(OTP store)]
+    RL[(Rate-limit counters)]
+    RS[(Streams: events:*)]
+  end

@@ -1,0 +1,15 @@
+classDiagram
+  class Account { +id; +userId; +balance; +version; +debit(amount) }
+  class Transaction { +id; +studentId; +amount; +status; +idempotencyKey }
+  class LedgerEntry { +id; +amount; +balanceAfter }
+  class PaymentSaga { +initiate(cmd); +verifyAndExecute(txnId, otp); -compensate(txn) }
+  class TuitionClient { +reserve(); +commit(); +release() }
+  class OtpClient { +issue(txnId); +verify(txnId, code) }
+  class OutboxPublisher { +publish(event) }
+  Account "1" --> "*" Transaction
+  Transaction "1" --> "0..2" LedgerEntry : DEBIT, refund CREDIT
+  PaymentSaga --> Account
+  PaymentSaga --> Transaction
+  PaymentSaga --> TuitionClient
+  PaymentSaga --> OtpClient
+  PaymentSaga --> OutboxPublisher
