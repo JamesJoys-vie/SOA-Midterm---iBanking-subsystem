@@ -41,10 +41,13 @@ event bus (Redis Streams + consumer groups, AOF persistence). No separate messag
 1. `Copy-Item .env.example .env` and fill in the passwords, `JWT_SECRET` and SMTP values
    (leave `SMTP_USER` empty to print emails to the log).
 2. Whole system: `docker compose up -d --build` -> web http://localhost:8080, Adminer http://localhost:8081.
-3. Public link (ngrok): `docker compose --profile public up -d`.
-4. Race demo: `docker compose -f docker-compose.yml -f docker-compose.demo.yml --profile demo run --rm race-demo all`
+3. Demo data (once): `docker compose --profile tools run --rm seed` -> users `alice` / `bob` / `carol`
+   (password `Password123!`) and 25 unpaid tuitions. Safe to run again (existing rows are skipped); paid tuitions
+   stay paid, so start from scratch with `docker compose down -v` (deletes all data), then steps 2-3.
+4. Public link (ngrok): `docker compose --profile public up -d`.
+5. Race demo: `docker compose -f docker-compose.yml -f docker-compose.demo.yml --profile demo run --rm race-demo all`
    (the demo override enables the OTP test echo; never use it on a real deployment).
-5. `docker compose down`
+6. `docker compose down`
 
 Frontend alone: `cd frontend; npm install; npm run dev` (serves :5173, proxies `/api` to the gateway on :8080).
 
