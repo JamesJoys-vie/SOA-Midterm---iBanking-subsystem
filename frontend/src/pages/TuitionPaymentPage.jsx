@@ -10,7 +10,7 @@ import { keys, useAccount, useProfile } from '../hooks/queries.js'
 import { useDebounce } from '../hooks/useTimers.js'
 import { newIdempotencyKey } from '../utils/format.js'
 import { ConfirmCard, PayerCard, TuitionCard } from '../components/PaymentCards.jsx'
-import OtpModal from '../components/OtpModal.jsx'
+import OtpModal, { RESEND_COOLDOWN, resendCooldownLeft } from '../components/OtpModal.jsx'
 import ResultCard from '../components/ResultCard.jsx'
 import { Alert, Stepper } from '../components/ui.jsx'
 
@@ -85,7 +85,8 @@ export default function TuitionPaymentPage() {
         const info = await getTuition(txn.student_id).catch(() => null)
         setMssv(txn.student_id)
         if (txn.status === 'PENDING_OTP') {
-          setPending({ txn, tuition: info, expiresIn: txn.otp_expires_in ?? 0, cooldown: 0 })
+          // Keep Resend locked for the rest of the 30 s cooldown.
+          setPending({ txn, tuition: info, expiresIn: txn.otp_expires_in ?? 0, cooldown: resendCooldownLeft(txn.otp_expires_in) })
           setPhase('otp')
         } else {
           setOutcome({ result: { transaction: txn, balance_after: null }, tuition: info })
@@ -122,7 +123,7 @@ export default function TuitionPaymentPage() {
       const txn = await initiateTransaction(t.student_id, attempt.current.key)
       queryClient.invalidateQueries({ queryKey: keys.transactions })
       if (txn.status === 'PENDING_OTP') {
-        setPending({ txn, tuition: t, expiresIn: txn.otp_expires_in ?? 300, cooldown: 30 })
+        setPending({ txn, tuition: t, expiresIn: txn.otp_expires_in ?? 300, cooldown: RESEND_COOLDOWN })
         setPhase('otp')
       } else {
         // Same key replayed for an attempt that already ended: show how it ended.

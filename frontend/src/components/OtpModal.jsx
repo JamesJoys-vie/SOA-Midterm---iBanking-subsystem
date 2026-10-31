@@ -10,7 +10,14 @@ import { Alert, Button, Money, Stepper } from './ui.jsx'
 // Number of digits in a code (otp-service issues 6-digit codes).
 const LENGTH = 6
 // Seconds between two codes of one transaction; otp-service enforces the same value and answers 429 otherwise.
-const RESEND_COOLDOWN = 30
+export const RESEND_COOLDOWN = 30
+// Code lifetime in seconds (default OTP_TTL_SECONDS); used to estimate a code's age.
+const OTP_TTL = 300
+
+// Resend cooldown left for a code with `expiresIn` seconds left (used on Resume).
+// With a shorter server TTL it returns 0; a 429 then sets the wait instead.
+export const resendCooldownLeft = (expiresIn) =>
+  Math.min(RESEND_COOLDOWN, Math.max(0, RESEND_COOLDOWN - (OTP_TTL - (expiresIn ?? 0))))
 
 // Six one-digit boxes that behave like a single field: typing moves forward, Backspace moves back, arrows move,
 // pasting or autofilling the whole code fills every box. `value` is the code typed so far ('' to 6 digits);
