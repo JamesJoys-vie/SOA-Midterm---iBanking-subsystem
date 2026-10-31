@@ -98,6 +98,16 @@ code puts **accounts, ledger and history in user-service** (`users_db`); payment
 and the outbox, and debits / refunds through `POST /internal/accounts/debit` / `credit`. `erd.mmd`,
 `architecture.mmd` and `docs/api/endpoints.md` were corrected to match (2026-10-31).
 
-Known issue (user-service, not changed here): `POST /internal/history` for a user with no account stores
-`account_id = "unknown-account"`, which breaks the `accounts` foreign key, so the call most likely fails with a 500.
-payment-service only calls it for payers whose account it has just debited, so it does not happen in the normal flow.
+
+## Bugs (?)
+Minor code smell (user-service, not changed here): `record_transaction_history` falls back to
+`account_id = "unknown-account"` when the payer has no `accounts` row. That value breaks the foreign key, so the
+fallback would fail rather than help. It cannot be reached in this system: every seeded user has an account, there
+is no sign-up, and `GET /internal/users/{id}` (called by payment-service before any payment starts) creates a missing
+account with balance 0. Only deleting an account row by hand during a payment could trigger it, and even then
+payment-service catches the error and only that history row is missing. Raising 404 instead would be cleaner.
+The root cause is that `get_user_profile` (`GET /users/me`, `GET /internal/users/{id}`) creates a missing account
+during a read, while `GET /accounts/me` answers 404 for the same user. Reproduced on MySQL (2026-10-31): the history
+call returns 500 (error 1452, foreign key), and concurrent first reads for a user without an account returned 500
+(duplicate `accounts.user_id`) in 14 of 500 calls. The user-service tests use SQLite, where foreign keys are off,
+so they cannot catch the first one.
