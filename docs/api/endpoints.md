@@ -22,6 +22,8 @@ Machine-readable specs, exported from the code: `docs/api/openapi/<service>.json
 | GET /transactions/{id} | - | 200 `Transaction` | 401, 404 |
 
 Other users' transactions answer 404 (never 403), so ids cannot be probed.
+The gateway also routes `GET /history` and `GET /tuitions` to user-service / tuition-service (Hieu's history and
+tuition list); the web app does not use them: its history comes from `GET /transactions` (payment-service).
 `POST /transactions` also accepts an optional `term` field; it is currently ignored (the oldest unpaid term is paid).
 
 ### Response objects
@@ -70,6 +72,9 @@ Called by payment-service only (its saga and its expiry / reconcile job). No JWT
 | Service | Method & path | Request | Success | Errors |
 |---|---|---|---|---|
 | user | GET /internal/users/{user_id} | - | 200 `UserProfile` (payer email + name for the OTP / receipt emails) | 404 |
+| user | POST /internal/accounts/debit | `{user_id, amount, transaction_id}` | 200 `{success, transaction_id, balance_after, message}`; only if `balance >= amount`. Same `transaction_id` again -> the first result, no second debit (ledger unique key) | 404 (no account), 422 (insufficient balance) |
+| user | POST /internal/accounts/credit | `{user_id, amount, transaction_id}` | 200 same shape; refund of that transaction's debit, at most once per `transaction_id` | 404 (no account) |
+| user | POST /internal/history | `{user_id, student_id, tuition_id, amount, status, failure_reason}` | 200 the history row; written once per final transaction (not idempotent, so payment-service does not retry it) | - |
 | tuition | GET /tuitions/{mssv} | - | 200 `TuitionInfo` (same route as the public one, called directly) | 404 |
 | tuition | POST /internal/tuitions/{tuition_id}/reserve | `{transaction_id}` | 200 `TuitionInfo` with `status` `RESERVED`; hold for 10 min. Same transaction again -> 200 and the hold is extended | 404, 409 (paid, or held by another transaction) |
 | tuition | POST /internal/tuitions/{tuition_id}/commit | `{transaction_id}` | 200 `{status: "PAID"}` (also when already paid by this transaction) | 404, 409 (not reserved by this transaction) |
