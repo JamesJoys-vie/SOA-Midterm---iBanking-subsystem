@@ -108,6 +108,7 @@ services:
     environment:
       REDIS_URL: redis://redis:6379/0
       OTP_TTL_SECONDS: ${OTP_TTL_SECONDS:-300}
+      OTP_EVENT_KEY: ${OTP_EVENT_KEY}  # encrypts the code in otp.requested; shared with notification-service only
     depends_on:
       redis: { condition: service_healthy }
     healthcheck: *svc-health
@@ -117,6 +118,7 @@ services:
     restart: unless-stopped
     environment:
       REDIS_URL: redis://redis:6379/0
+      OTP_EVENT_KEY: ${OTP_EVENT_KEY}  # decrypts the code in otp.requested
       SMTP_HOST: ${SMTP_HOST}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER}
