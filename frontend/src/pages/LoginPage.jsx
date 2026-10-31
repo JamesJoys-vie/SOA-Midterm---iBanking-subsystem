@@ -30,7 +30,8 @@ export default function LoginPage() {
 
   return (
     <main className="grid min-h-screen place-items-center bg-slate-50 px-4">
-      <form onSubmit={handleSubmit(onSubmit)} noValidate className="w-full max-w-sm space-y-4 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+      {/* method="post": a native submit (if the handler ever failed) would never put the password in the URL. */}
+      <form method="post" onSubmit={handleSubmit(onSubmit)} noValidate className="w-full max-w-sm space-y-4 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <div>
           <h1 className="text-2xl font-bold text-blue-700">iBanking</h1>
           <p className="text-sm text-slate-500">Sign in to pay tuition</p>
