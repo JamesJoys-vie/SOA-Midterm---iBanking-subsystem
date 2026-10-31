@@ -23,7 +23,7 @@ export default function ResultCard({ result, tuition, primary, secondary }) {
   const head = HEADS[variant]
 
   return (
-    <Card className="mx-auto max-w-[480px]">
+    <Card className="mx-auto max-w-120">
       <div className="text-center">
         <div className={`mx-auto flex h-14 w-14 items-center justify-center rounded-full text-2xl font-bold ${head.ring}`}>{head.icon}</div>
         <h2 className="mt-3 text-xl font-semibold text-slate-900">{head.title}</h2>

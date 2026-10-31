@@ -75,7 +75,7 @@ export default function HistoryTable({ transactions, loading, compact = false })
       )}
 
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[560px] text-sm">
+        <table className="w-full min-w-140 text-sm">
           <thead>
             <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
               <th className="py-2 pr-3 font-medium">Date</th>
