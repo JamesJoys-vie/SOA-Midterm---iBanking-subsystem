@@ -5,6 +5,7 @@ pymysql>=1.1
 cryptography>=42
 alembic>=1.13
 pydantic>=2.7
+email-validator>=2.0  # user-service schemas use EmailStr
 pydantic-settings>=2.3
 pyjwt>=2.8
 bcrypt>=4.1
