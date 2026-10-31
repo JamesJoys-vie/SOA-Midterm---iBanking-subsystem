@@ -2,6 +2,7 @@ import secrets
 from functools import lru_cache
 from fastapi import APIRouter, HTTPException
 from shared import events
+from shared.otp_crypto import OtpCipher
 from shared.redis_client import get_redis
 from app.core.config import settings
 from app.repositories.otp_store import OtpStore, VerifyResult
@@ -16,6 +17,11 @@ TEST_ECHO_PREFIX = "otp:test:"
 @lru_cache
 def store() -> OtpStore:
     return OtpStore(get_redis(settings.redis_url), settings.otp_ttl_seconds, settings.otp_max_attempts)
+
+
+@lru_cache
+def cipher() -> OtpCipher:
+    return OtpCipher(settings.otp_event_key)
 
 
 @router.post("/internal/otp", response_model=IssueOtpResponse, status_code=201,
@@ -36,7 +42,9 @@ def issue(body: IssueOtpRequest):
         raise HTTPException(503, "Could not allocate a unique OTP, try again")
     if settings.otp_test_echo:
         s.r.set(f"{TEST_ECHO_PREFIX}{body.transaction_id}", code, ex=settings.otp_ttl_seconds)
-    events.publish(s.r, events.OTP_REQUESTED, {"email": body.email, "full_name": body.full_name, "otp": code,
+    # only the encrypted code goes on the shared stream (kept ~10k entries + AOF); notification-service decrypts it
+    events.publish(s.r, events.OTP_REQUESTED, {"email": body.email, "full_name": body.full_name,
+                                               "otp_enc": cipher().encrypt(body.transaction_id, code),
                                                "transaction_id": body.transaction_id,
                                                "expires_in": settings.otp_ttl_seconds})
     return IssueOtpResponse(expires_in=settings.otp_ttl_seconds)

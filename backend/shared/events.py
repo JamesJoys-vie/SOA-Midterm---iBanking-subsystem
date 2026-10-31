@@ -20,7 +20,7 @@ import redis
 
 log = logging.getLogger(__name__)
 
-OTP_REQUESTED = "otp.requested"          # payload: {email, full_name, otp, transaction_id, expires_in}
+OTP_REQUESTED = "otp.requested"          # payload: {email, full_name, otp_enc, transaction_id, expires_in}
 PAYMENT_COMPLETED = "payment.completed"  # payload: {email, full_name, transaction_id, student_id, amount, balance_after}
 
 STREAM_PREFIX = "events:"
