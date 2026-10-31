@@ -38,7 +38,8 @@ event bus (Redis Streams + consumer groups, AOF persistence). No separate messag
 | Load tests (Locust, pytest races, invariant checker) | - | planned |
 
 ## Run
-1. `Copy-Item .env.example .env` and fill in the passwords, `JWT_SECRET` and SMTP values
+1. `Copy-Item .env.example .env` and fill in the passwords, `JWT_SECRET`, `OTP_EVENT_KEY` (command in
+   `.env.example`; otp-service and notification-service do not start without it) and SMTP values
    (leave `SMTP_USER` empty to print emails to the log).
 2. Whole system: `docker compose up -d --build` -> web http://localhost:8080, Adminer http://localhost:8081.
 3. Demo data (once): `docker compose --profile tools run --rm seed` -> users `alice` / `bob` / `carol`
