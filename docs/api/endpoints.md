@@ -86,8 +86,9 @@ Load tests only: otp `GET /internal/test/otp/{transaction_id}` (latest plain cod
 
 | Stream | Producer | Consumer | Payload |
 |---|---|---|---|
-| `events:otp.requested` | otp-service, on every issued OTP | notification-service (group `notification`) | `{email, full_name, otp, transaction_id, expires_in}` |
+| `events:otp.requested` | otp-service, on every issued OTP | notification-service (group `notification`) | `{email, full_name, otp_enc, transaction_id, expires_in}` - `otp_enc` = Fernet token of `{otp, transaction_id}` (key `OTP_EVENT_KEY`, given to these two services only); the plain code is never stored in the stream |
 | `events:payment.completed` | payment-service outbox relay, once per SUCCESS | notification-service (group `notification`) | `{email, full_name, transaction_id, student_id, amount, balance_after}` |
 
 Delivery is at-least-once (XACK after the email is sent, un-acked messages are re-claimed), so the consumer skips
-duplicates (Redis key per event, 24 h).
+duplicates (Redis key per event, 24 h). A message that keeps failing (5 deliveries) or can never succeed is moved to
+`events:dead:<type>` with the error; an OTP email whose code has expired is dropped instead of sent.
