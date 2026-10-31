@@ -4,7 +4,9 @@ import hashlib
 import logging
 import threading
 from shared import events
+from shared.otp_crypto import OtpCipher, OtpTokenError, OtpTokenExpired
 from shared.redis_client import get_redis
+from app.core.config import settings
 from app.domain.mailer import is_permanent, send_email
 
 log = logging.getLogger("notification.consumer")
@@ -23,14 +25,14 @@ def _vnd(amount) -> str:
     return f"{float(amount):,.0f} VND"
 
 
-def _render(event_type: str, p: dict) -> tuple[str, str, str]:
-    """-> (dedupe id, subject, body)"""
+def _render(event_type: str, p: dict, code: str | None = None) -> tuple[str, str, str]:
+    """-> (dedupe id, subject, body); `code` = the decrypted OTP for otp.requested"""
     if event_type == events.OTP_REQUESTED:
-        # a resend reuses the transaction id with a new code -> include the code (hashed) in the dedupe id
-        otp_id = hashlib.sha256(p["otp"].encode()).hexdigest()[:16]
+        # a resend reuses the transaction id with a new code (= new token); a redelivery carries the same token
+        otp_id = hashlib.sha256(p["otp_enc"].encode()).hexdigest()[:16]
         return (f"{p['transaction_id']}:{otp_id}", "Your tuition payment OTP",
                 f"Hello {p['full_name']},\n\n"
-                f"Your one-time password is {p['otp']}.\n"
+                f"Your one-time password is {code}.\n"
                 f"It expires in {p['expires_in'] // 60} minutes and can be used once.\n"
                 f"Transaction: {p['transaction_id']}\n\n"
                 f"If you did not start this payment, ignore this email and do not share the code.")
@@ -41,20 +43,40 @@ def _render(event_type: str, p: dict) -> tuple[str, str, str]:
             f"Transaction: {p['transaction_id']}\n")
 
 
-def make_handler(r):
+def _otp_code(cipher: OtpCipher, p: dict, msg_id: str) -> str | None:
+    """The plain code of an otp.requested payload, or None when the code has expired (the email would only
+    mislead the user). A token that does not decrypt is permanent: retries get the same answer."""
+    if events.message_age_s(msg_id) >= p["expires_in"]:  # a late retry
+        log.warning("OTP email for %s dropped: code expired before it could be sent", p["transaction_id"])
+        return None
+    try:
+        return cipher.decrypt(p["otp_enc"], p["transaction_id"], p["expires_in"])
+    except OtpTokenExpired:
+        log.warning("OTP email for %s dropped: token older than the code lifetime", p["transaction_id"])
+        return None
+    except OtpTokenError as e:
+        raise events.PermanentError(str(e)) from e
+
+
+def make_handler(r, cipher: OtpCipher):
     def handle(event_type: str, payload: dict, msg_id: str) -> None:
         if event_type not in (events.OTP_REQUESTED, events.PAYMENT_COMPLETED):
             return
+        if event_type == events.OTP_REQUESTED and "otp_enc" not in payload and "otp" in payload:
+            # written before the code was encrypted: acked without a dead-letter copy, so the plain code is not
+            # copied anywhere else (its code has long expired anyway)
+            log.warning("old plain-text otp.requested %s dropped", msg_id)
+            return
         try:
-            dedupe_id, subject, body = _render(event_type, payload)
+            code = None
+            if event_type == events.OTP_REQUESTED:
+                code = _otp_code(cipher, payload, msg_id)
+                if code is None:
+                    return
+            dedupe_id, subject, body = _render(event_type, payload, code)
             to = payload["email"]
-            expires_in = payload["expires_in"] if event_type == events.OTP_REQUESTED else None
         except (KeyError, TypeError, ValueError, AttributeError) as e:
             raise events.PermanentError(f"bad payload: {e!r}") from e
-        if expires_in is not None and events.message_age_s(msg_id) >= expires_in:
-            # a late retry: the code has expired, so the email would only mislead the user
-            log.warning("OTP email for %s dropped: code expired before it could be sent", payload["transaction_id"])
-            return
         sent_key = f"notif:sent:{event_type}:{dedupe_id}"
         sending_key = f"notif:sending:{event_type}:{dedupe_id}"
         if r.exists(sent_key):
@@ -77,7 +99,7 @@ def make_handler(r):
 
 def _run(r, stop: threading.Event) -> None:
     """Keep the consumer alive across Redis hiccups (consume() raises on connection errors)."""
-    handler = make_handler(r)
+    handler = make_handler(r, OtpCipher(settings.otp_event_key))
     while not stop.is_set():
         try:
             events.consume(r, GROUP, [events.OTP_REQUESTED, events.PAYMENT_COMPLETED], handler,

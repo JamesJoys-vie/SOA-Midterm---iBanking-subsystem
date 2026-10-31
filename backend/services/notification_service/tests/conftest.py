@@ -5,8 +5,10 @@ Run inside the compose network (tests are not baked into the image, so mount the
         -c "pip install -q pytest && python -m pytest -q tests"
 """
 import os
+from cryptography.fernet import Fernet
 
-os.environ.setdefault("REDIS_URL", "redis://localhost:6379/15")  # app.core.config needs it at import time
+os.environ.setdefault("REDIS_URL", "redis://localhost:6379/15")  # app.core.config needs these at import time
+os.environ.setdefault("OTP_EVENT_KEY", Fernet.generate_key().decode())
 
 import pytest
 import redis
