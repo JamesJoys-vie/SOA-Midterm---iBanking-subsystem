@@ -1,7 +1,10 @@
 erDiagram
-  %% Matches the Alembic migrations (user 0001, tuition 0001, payment 0001 + 0002).
-  %% Three MySQL databases, one per service: users_db (USERS), tuition_db (STUDENTS, TUITIONS),
-  %% payments_db (ACCOUNTS, TRANSACTIONS, LEDGER_ENTRIES, OUTBOX_EVENTS).
+  %% Matches the SQLAlchemy models (user-service / tuition-service create their tables from app/models.py;
+  %% payment-service uses its Alembic migration 0001).
+  %% Three MySQL databases, one per service:
+  %%   users_db   (user-service):    USERS, ACCOUNTS, LEDGER_ENTRIES, PAYMENT_HISTORY (table name "transactions")
+  %%   tuition_db (tuition-service): STUDENTS, TUITIONS
+  %%   payments_db (payment-service): TRANSACTIONS, OUTBOX_EVENTS
   %% Relationships labelled "logical" cross a database boundary: plain id columns, no FOREIGN KEY constraint.
   %% OTPs live in Redis, not MySQL (see docs/design/services.md, "Redis data").
   USERS {
@@ -15,32 +18,47 @@ erDiagram
   }
   ACCOUNTS {
     string id PK "UUID"
-    string user_id UK "logical ref USERS.id"
+    string user_id FK "UK, USERS.id"
     decimal balance "Numeric(15,2), CHECK balance >= 0"
     int version "incremented on every balance change"
-  }
-  TRANSACTIONS {
-    string id PK "UUID"
-    string account_id FK
-    string payer_user_id "logical ref USERS.id"
-    string student_id "MSSV, copied from the tuition"
-    string tuition_id "logical ref TUITIONS.id"
-    decimal amount
-    string status "PENDING_OTP, PROCESSING, SUCCESS, FAILED, CANCELLED, EXPIRED"
-    string idempotency_key UK
-    string failure_reason "nullable"
-    datetime created_at
-    datetime expires_at "nullable, end of the OTP window"
-    datetime completed_at "nullable"
   }
   LEDGER_ENTRIES {
     string id PK "UUID"
     string account_id FK
-    string transaction_id FK "UK (transaction_id, type)"
+    string transaction_id "UK (transaction_id, type); logical ref TRANSACTIONS.id"
     string type "DEBIT or CREDIT (refund)"
     decimal amount
     decimal balance_after
     datetime created_at
+  }
+  PAYMENT_HISTORY {
+    string id PK "UUID; table transactions in users_db"
+    string account_id FK
+    string payer_user_id "USERS.id"
+    string student_id "MSSV"
+    string tuition_id "nullable, logical ref TUITIONS.id"
+    decimal amount
+    string status "final status, written once by payment-service"
+    string failure_reason "nullable"
+    datetime created_at
+    datetime completed_at "nullable"
+  }
+  TRANSACTIONS {
+    string id PK "UUID"
+    string payer_user_id "logical ref USERS.id, from the JWT"
+    string student_id "MSSV, copied from the tuition"
+    string tuition_id "logical ref TUITIONS.id"
+    decimal amount "CHECK amount > 0, full tuition amount"
+    string status "PENDING_OTP, PROCESSING, SUCCESS, FAILED, CANCELLED, EXPIRED"
+    string idempotency_key UK
+    string failure_reason "nullable"
+    bool debited "money taken, refund needed if the saga fails later"
+    bool needs_refund "refund failed, the expiry job retries it"
+    decimal balance_after "nullable"
+    datetime created_at
+    datetime updated_at
+    datetime expires_at "nullable, end of the OTP window"
+    datetime completed_at "nullable"
   }
   OUTBOX_EVENTS {
     string id PK "UUID"
@@ -65,11 +83,12 @@ erDiagram
     int version
   }
 
-  USERS ||--|| ACCOUNTS : "owns (logical)"
-  USERS ||--o{ TRANSACTIONS : "pays (logical)"
-  ACCOUNTS ||--o{ TRANSACTIONS : "is charged by"
+  USERS ||--|| ACCOUNTS : "owns"
   ACCOUNTS ||--o{ LEDGER_ENTRIES : "balance history"
-  TRANSACTIONS ||--o{ LEDGER_ENTRIES : "at most 1 DEBIT + 1 CREDIT"
+  ACCOUNTS ||--o{ PAYMENT_HISTORY : "served by GET /history"
+  USERS ||--o{ TRANSACTIONS : "pays (logical)"
+  TRANSACTIONS ||--o{ LEDGER_ENTRIES : "at most 1 DEBIT + 1 CREDIT (logical)"
+  TRANSACTIONS ||--o| PAYMENT_HISTORY : "final result copied (no id column)"
   TRANSACTIONS ||--o| OUTBOX_EVENTS : "announced by (payload)"
   STUDENTS ||--o{ TUITIONS : "has one per term"
   TUITIONS ||--o{ TRANSACTIONS : "attempts (logical); at most 1 SUCCESS"
