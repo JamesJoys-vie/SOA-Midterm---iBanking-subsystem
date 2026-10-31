@@ -1,5 +1,6 @@
 name: tuition-payment
 # Whole system: docker compose up -d --build   ->  web http://localhost:8080 , Adminer http://localhost:8081
+# Demo data (once):     docker compose --profile tools run --rm seed
 # Public link (ngrok):   docker compose --profile public up -d
 # Race demo:            docker compose -f docker-compose.yml -f docker-compose.demo.yml --profile demo run --rm race-demo all
 
@@ -176,6 +177,23 @@ services:
       OTP_SERVICE_URL: http://otp-service:8000
     depends_on:
       gateway: { condition: service_healthy }
+
+  seed:
+    # Hieu: demo users / accounts (user DB) and students / tuitions (tuition DB). Idempotent: rows that already exist
+    # are skipped, so used tuitions stay PAID (reset everything with: docker compose down -v).
+    # Only with --profile tools. SERVICE_DIR "." copies the whole backend because seed.py imports the
+    # user-service / tuition-service models (backend/services/*) to make sure their tables exist.
+    build: { context: ./backend, args: { SERVICE_DIR: . } }
+    profiles: ["tools"]
+    entrypoint: ["python", "scripts/seed.py"]
+    environment:
+      # Each database is written with its own service's MySQL user (database per service)
+      USERS_DB_URL: mysql+pymysql://user_svc:${USER_DB_PASSWORD}@mysql:3306/users_db
+      TUITION_DB_URL: mysql+pymysql://tuition_svc:${TUITION_DB_PASSWORD}@mysql:3306/tuition_db
+    depends_on:
+      # healthy = the service is up and has already created its tables
+      user-service: { condition: service_healthy }
+      tuition-service: { condition: service_healthy }
 
 volumes:
   mysql_data:
