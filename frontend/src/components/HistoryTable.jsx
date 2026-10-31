@@ -1,19 +1,18 @@
-// Transactions table (see "6. History" in docs/wireframes/wireframes.html). Full mode (History page) has MSSV /
-// status filters and paging; compact mode (Home) shows the 5 newest rows. Filters live in component state only,
-// never in the URL, so searched MSSVs do not end up in the address bar or browser history.
+// Transactions table. Full mode (History): filters + paging. Compact mode (Home): 5 newest rows.
+// Filters stay in component state, never in the URL.
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { formatDateTime, shortId } from '../utils/format.js'
 import { Money, Skeleton, StatusBadge } from './ui.jsx'
 
-// Choices of the status filter, in the order a user usually looks for them.
+// Status filter options.
 const STATUSES = ['SUCCESS', 'PENDING_OTP', 'PROCESSING', 'FAILED', 'EXPIRED', 'CANCELLED']
-// Rows per page in full mode.
+// Rows per page (full mode).
 const PAGE_SIZE = 10
-// Rows shown in compact mode (Home's "Recent transactions").
+// Rows shown in compact mode.
 const COMPACT_ROWS = 5
 
-// Shown instead of the table when the user has no transaction at all, with a shortcut to /pay.
+// Shown when the user has no transactions yet.
 export function EmptyTransactions() {
   return (
     <div className="py-10 text-center">
@@ -24,28 +23,27 @@ export function EmptyTransactions() {
   )
 }
 
-// `transactions`: GET /transactions result (newest first) or undefined while loading. `loading`: show skeleton rows.
-// `compact`: Home mode (no filters, no paging, no transaction id column).
+// transactions: list from GET /transactions (newest first). loading: show skeletons. compact: Home mode.
 export default function HistoryTable({ transactions, loading, compact = false }) {
-  // MSSV search text (matches any part, case-insensitive).
+  // MSSV search text.
   const [mssv, setMssv] = useState('')
-  // Selected status, '' = all.
+  // Selected status ('' = all).
   const [status, setStatus] = useState('')
-  // Page asked for by the user (1-based); clamped below when the filters shrink the list.
+  // Requested page (1-based).
   const [page, setPage] = useState(1)
 
-  // Rows that pass the filters (full mode) or the newest few (compact mode); recomputed only when inputs change.
+  // Rows after filtering (full) or the newest rows (compact).
   const filtered = useMemo(() => {
     const list = transactions || []
     if (compact) return list.slice(0, COMPACT_ROWS)
     return list.filter((t) => (!mssv || t.student_id.toUpperCase().includes(mssv.trim().toUpperCase())) && (!status || t.status === status))
   }, [transactions, compact, mssv, status])
 
-  // Number of pages (at least 1, so "1 / 1" shows for short lists).
+  // Total pages (at least 1).
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-  // Page actually shown: the requested one, or the last page if filtering removed it.
+  // Page shown, kept within range.
   const current = Math.min(page, pages)
-  // Rows rendered right now.
+  // Rows on screen.
   const rows = compact ? filtered : filtered.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE)
 
   if (!loading && transactions?.length === 0) return <EmptyTransactions />
@@ -56,7 +54,7 @@ export default function HistoryTable({ transactions, loading, compact = false })
         <div className="flex flex-wrap gap-2">
           <input
             value={mssv}
-            // A new search starts again from page 1.
+            // New search -> back to page 1.
             onChange={(e) => { setMssv(e.target.value); setPage(1) }}
             placeholder="Search by MSSV"
             aria-label="Search by MSSV"
@@ -99,7 +97,7 @@ export default function HistoryTable({ transactions, loading, compact = false })
                 {!compact && <td className="py-2.5 pr-3 font-mono text-xs text-slate-500" title={t.id}>{shortId(t.id)}</td>}
                 <td className="py-2.5 pr-3 font-medium text-slate-800">{t.student_id}</td>
                 <td className="py-2.5 pr-3 text-right"><Money value={t.amount} /></td>
-                {/* Hovering a FAILED / CANCELLED / EXPIRED badge shows the reason. */}
+                {/* Hover shows the failure reason. */}
                 <td className="py-2.5" title={t.failure_reason || undefined}><StatusBadge status={t.status} /></td>
               </tr>
             ))}

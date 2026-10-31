@@ -179,19 +179,17 @@ services:
       gateway: { condition: service_healthy }
 
   seed:
-    # Hieu: demo users / accounts (user DB) and students / tuitions (tuition DB). Idempotent: rows that already exist
-    # are skipped, so used tuitions stay PAID (reset everything with: docker compose down -v).
-    # Only with --profile tools. SERVICE_DIR "." copies the whole backend because seed.py imports the
-    # user-service / tuition-service models (backend/services/*) to make sure their tables exist.
+    # Hieu: demo users and tuitions (only with --profile tools). Skips existing rows; reset with: docker compose down -v
+    # SERVICE_DIR "." = whole backend, since seed.py imports the user / tuition service models.
     build: { context: ./backend, args: { SERVICE_DIR: . } }
     profiles: ["tools"]
     entrypoint: ["python", "scripts/seed.py"]
     environment:
-      # Each database is written with its own service's MySQL user (database per service)
+      # Each DB with its own service's MySQL user
       USERS_DB_URL: mysql+pymysql://user_svc:${USER_DB_PASSWORD}@mysql:3306/users_db
       TUITION_DB_URL: mysql+pymysql://tuition_svc:${TUITION_DB_PASSWORD}@mysql:3306/tuition_db
     depends_on:
-      # healthy = the service is up and has already created its tables
+      # healthy = tables already created
       user-service: { condition: service_healthy }
       tuition-service: { condition: service_healthy }
 

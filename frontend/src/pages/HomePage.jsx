@@ -1,5 +1,4 @@
-// /home: landing page after login (see "2. Home" in docs/wireframes/wireframes.html): balance, success /
-// not-completed counts, pending OTPs, last 5 transactions. One cached GET /transactions feeds every section.
+// /home: balance, payment counts, pending payments, recent transactions. One shared GET /transactions feeds it all.
 import { Link } from 'react-router-dom'
 import { useAccount, useProfile, useTransactions } from '../hooks/queries.js'
 import { ENDED_STATUSES } from '../utils/format.js'
@@ -8,18 +7,18 @@ import PendingPaymentsCard from '../components/PendingPaymentsCard.jsx'
 import { Alert, Button, Card, EyeToggle, Money, Skeleton, StatCard } from '../components/ui.jsx'
 
 export default function HomePage() {
-  // Payer profile (name, username), balance, and the shared transaction list.
+  // Profile, balance and transaction list.
   const profile = useProfile()
   const account = useAccount()
   const txns = useTransactions()
 
-  // Transactions (newest first), empty while loading so the counts below never break.
+  // Transactions, or [] while loading.
   const list = txns.data || []
-  // Payments that went through.
+  // Successful payments.
   const succeeded = list.filter((t) => t.status === 'SUCCESS')
-  // Attempts that ended without paying (FAILED / EXPIRED / CANCELLED).
+  // Failed, expired or cancelled payments.
   const notCompleted = list.filter((t) => ENDED_STATUSES.includes(t.status))
-  // Sum of the successful payments, shown under their count.
+  // Total of successful payments.
   const totalPaid = succeeded.reduce((sum, t) => sum + Number(t.amount), 0)
 
   return (
@@ -59,7 +58,7 @@ export default function HomePage() {
         </Alert>
       )}
 
-      {/* key = fetch time: each refetch remounts the card so every countdown restarts from fresh otp_expires_in. */}
+      {/* Remount on each refetch so countdowns restart from fresh data. */}
       <PendingPaymentsCard key={txns.dataUpdatedAt} transactions={list} fetchedAt={txns.dataUpdatedAt} />
 
       <Card title="Recent transactions" hint={<Link to="/history" className="text-sm text-blue-600 hover:underline">View all →</Link>}>

@@ -1,5 +1,4 @@
-// Home's "Waiting for OTP" card (see "2. Home" in docs/wireframes/wireframes.html): PENDING_OTP transactions with a
-// live countdown, Resume (reopens the OTP modal on /pay) and Cancel. Hidden when nothing is pending.
+// Home's "Waiting for OTP" card: pending payments with countdown, Resume and Cancel. Hidden when empty.
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
@@ -9,18 +8,15 @@ import { useSecondsLeft } from '../hooks/useTimers.js'
 import { formatClock, formatDateTime } from '../utils/format.js'
 import { Alert, Button, Card, Money } from './ui.jsx'
 
-// One pending transaction. `txn`: the transaction; `fetchedAt`: epoch ms when the list was fetched
-// (its `otp_expires_in` counts from that moment).
+// One pending payment. fetchedAt: when the list was loaded (otp_expires_in counts from then).
 function PendingRow({ txn, fetchedAt }) {
-  // Opens /pay for Resume.
   const navigate = useNavigate()
-  // Refreshes history and balance after a cancel.
   const queryClient = useQueryClient()
-  // Epoch ms when this transaction's current code expires; fixed for the row's lifetime (the card remounts on refetch).
+  // When the code expires (epoch ms).
   const [deadline] = useState(() => fetchedAt + (txn.otp_expires_in ?? 0) * 1000)
-  // Seconds left, ticking every second; 0 disables Resume.
+  // Seconds left; 0 disables Resume.
   const left = useSecondsLeft(deadline)
-  // POST /transactions/{id}/cancel; whatever the outcome, reload the list and balance so the card shows the truth.
+  // Cancels the payment, then reloads the list and balance.
   const cancel = useMutation({
     mutationFn: () => cancelTransaction(txn.id),
     onSettled: () => {
@@ -29,12 +25,12 @@ function PendingRow({ txn, fetchedAt }) {
     },
   })
 
-  // Cancel button: confirm first, as the wireframe asks.
+  // Asks before cancelling.
   const onCancel = () => {
     if (window.confirm(`Cancel the payment for MSSV ${txn.student_id}?`)) cancel.mutate()
   }
 
-  // Resume button: the id travels in router state, not in the URL, so the address bar stays plain /pay.
+  // Reopens the OTP modal on /pay; the id goes in router state, not the URL.
   const onResume = () => navigate('/pay', { state: { resumeId: txn.id } })
 
   return (
@@ -55,9 +51,9 @@ function PendingRow({ txn, fetchedAt }) {
   )
 }
 
-// `transactions`: the shared GET /transactions list. `fetchedAt`: when it was fetched (React Query dataUpdatedAt).
+// transactions: shared GET /transactions list. fetchedAt: its load time.
 export default function PendingPaymentsCard({ transactions, fetchedAt }) {
-  // Only the transactions still waiting for their code.
+  // Payments still waiting for their code.
   const pending = (transactions || []).filter((t) => t.status === 'PENDING_OTP')
   if (pending.length === 0) return null
   return (
