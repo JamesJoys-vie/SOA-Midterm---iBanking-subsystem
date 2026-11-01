@@ -70,9 +70,11 @@ Browser / Web SPA ──HTTP Bearer / POST /login──> API Gateway ──X-Use
        "balance": "30000000.00"
      }
      ```
+   - **Error (404)**: `{"detail": "Payment account not found for this user"}`
 
 3. `GET /accounts/me`
    - **Response (200)**: `{"balance": "30000000.00"}`
+   - **Error (404)**: `{"detail": "Payment account not found for this user"}`
 
 4. `GET /history` (or `GET /transactions`)
    - **Response (200)**: Array of transaction history items (newest first).
@@ -81,6 +83,7 @@ Browser / Web SPA ──HTTP Bearer / POST /login──> API Gateway ──X-Use
 
 1. `GET /internal/users/{user_id}`
    - Provides payer contact details (full name, email) for `payment-service` and `otp-service`.
+   - **Error (404)**: `{"detail": "Payment account not found for this user"}`
 
 2. `POST /internal/accounts/debit`
    - **Request**: `{"user_id": "...", "amount": "15000000.00", "transaction_id": "txn-uuid"}`
@@ -106,6 +109,11 @@ Browser / Web SPA ──HTTP Bearer / POST /login──> API Gateway ──X-Use
        "message": "Account refunded successfully"
      }
      ```
+
+4. `POST /internal/history`
+   - **Request**: `{"user_id": "...", "student_id": "52100001", "tuition_id": "...", "amount": "15000000.00", "status": "SUCCESS"}`
+   - **Response (200)**: Returns created `TransactionHistoryItem`.
+   - **Error (404)**: `{"detail": "Payment account not found for this user"}`
 
 ---
 

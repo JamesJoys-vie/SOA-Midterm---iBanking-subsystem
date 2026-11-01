@@ -1,8 +1,10 @@
 """Unit and integration tests for user-service (Tasks 1 & 4 - Nguyen Duc Hieu)."""
 from decimal import Decimal
 from fastapi.testclient import TestClient
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
 
-from app.models import User
+from app.models import Account, User
 
 
 # ==============================================================================
@@ -193,3 +195,134 @@ def test_transaction_history_record_and_list(client: TestClient, sample_user: Us
     assert items[0]["student_id"] == "52100001"
     assert items[0]["status"] == "SUCCESS"
     assert Decimal(str(items[0]["amount"])) == Decimal("15000000.00")
+
+
+# ==============================================================================
+# 6. ISSUE #21 BUG FIXES: HANDLING USER WITHOUT ACCOUNT
+# ==============================================================================
+
+def test_user_without_account_profile_returns_404(
+    client: TestClient,
+    user_without_account: User,
+    db_session: Session,
+):
+    """Bug 2 & 3: GET /me and GET /users/me must return 404 and NOT create an account."""
+    # 1. GET /me via Bearer token
+    login_res = client.post(
+        "/auth/login",
+        json={"username": "noacc_user", "password": "Password123!"},
+    )
+    assert login_res.status_code == 200
+    token = login_res.json()["access_token"]
+
+    res_me = client.get("/me", headers={"Authorization": f"Bearer {token}"})
+    assert res_me.status_code == 404
+    assert res_me.json()["detail"] == "Payment account not found for this user"
+
+    # 2. GET /users/me via Gateway header
+    res_users_me = client.get("/users/me", headers={"X-User-Id": user_without_account.id})
+    assert res_users_me.status_code == 404
+    assert res_users_me.json()["detail"] == "Payment account not found for this user"
+
+    # Verify no account was automatically created in the database
+    account_count = db_session.scalar(
+        select(func.count(Account.id)).where(Account.user_id == user_without_account.id)
+    )
+    assert account_count == 0
+
+
+def test_user_without_account_internal_get_returns_404(
+    client: TestClient,
+    user_without_account: User,
+    db_session: Session,
+):
+    """Bug 2 & 3: GET /internal/users/{user_id} must return 404 and NOT create an account."""
+    res = client.get(f"/internal/users/{user_without_account.id}")
+    assert res.status_code == 404
+    assert res.json()["detail"] == "Payment account not found for this user"
+
+    # Verify database was not modified
+    account_count = db_session.scalar(
+        select(func.count(Account.id)).where(Account.user_id == user_without_account.id)
+    )
+    assert account_count == 0
+
+
+def test_user_without_account_balance_returns_404(
+    client: TestClient,
+    user_without_account: User,
+):
+    """Consistency check: GET /accounts/me must return 404 when user has no account."""
+    res = client.get("/accounts/me", headers={"X-User-Id": user_without_account.id})
+    assert res.status_code == 404
+    assert res.json()["detail"] == "Payment account not found for this user"
+
+
+def test_user_without_account_record_history_returns_404(
+    client: TestClient,
+    user_without_account: User,
+):
+    """Bug 1: POST /internal/history must return 404 when user has no account (avoiding foreign key failure)."""
+    res = client.post(
+        "/internal/history",
+        json={
+            "user_id": user_without_account.id,
+            "student_id": "52100001",
+            "tuition_id": "tuition-001",
+            "amount": 15000000.00,
+            "status": "SUCCESS",
+        },
+    )
+    assert res.status_code == 404
+    assert res.json()["detail"] == "Payment account not found for this user"
+
+
+def test_profile_idempotent_read_consistency(
+    client: TestClient,
+    user_without_account: User,
+    db_session: Session,
+):
+    """Verify Bug 2 reproduction flow does not mutate state or cause race conditions:
+    1. GET /accounts/me -> 404
+    2. GET /internal/users/{id} -> 404 (does NOT create an account)
+    3. GET /accounts/me -> still 404
+    """
+    res1 = client.get("/accounts/me", headers={"X-User-Id": user_without_account.id})
+    assert res1.status_code == 404
+
+    res2 = client.get(f"/internal/users/{user_without_account.id}")
+    assert res2.status_code == 404
+
+    res3 = client.get("/accounts/me", headers={"X-User-Id": user_without_account.id})
+    assert res3.status_code == 404
+
+    account_count = db_session.scalar(
+        select(func.count(Account.id)).where(Account.user_id == user_without_account.id)
+    )
+    assert account_count == 0
+
+
+def test_sqlite_foreign_key_constraint_enforced(db_session: Session):
+    """Verify that PRAGMA foreign_keys=ON is active in SQLite tests.
+
+    Attempting to directly persist a TransactionHistory with an invalid account_id
+    must trigger an IntegrityError, ensuring test fidelity with MySQL production.
+    """
+    import pytest
+    from sqlalchemy.exc import IntegrityError
+    from app.models import TransactionHistory
+
+    invalid_txn = TransactionHistory(
+        account_id="unknown-account",
+        payer_user_id="user-test-uuid-1",
+        student_id="52100001",
+        tuition_id="tuition-001",
+        amount=Decimal("10000.00"),
+        status="SUCCESS",
+    )
+    db_session.add(invalid_txn)
+    with pytest.raises(IntegrityError):
+        db_session.commit()
+    db_session.rollback()
+
+
