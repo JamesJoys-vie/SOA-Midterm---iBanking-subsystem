@@ -28,7 +28,11 @@ class TransactionRepository:
         return txn if txn and txn.payer_user_id == user_id else None
 
     def find_by_key(self, idempotency_key: str) -> Transaction | None:
-        return self.db.scalar(select(Transaction).where(Transaction.idempotency_key == idempotency_key))
+        txn = self.db.scalar(select(Transaction).where(Transaction.idempotency_key == idempotency_key))
+        # End the read: under REPEATABLE READ a second look in the same DB transaction would not see a parallel
+        # twin's insert, and the connection would stay checked out during the remote calls that follow.
+        self.db.commit()
+        return txn
 
     def list_by_user(self, user_id: str, limit: int = MAX_HISTORY) -> list[Transaction]:
         return list(self.db.scalars(select(Transaction).where(Transaction.payer_user_id == user_id)

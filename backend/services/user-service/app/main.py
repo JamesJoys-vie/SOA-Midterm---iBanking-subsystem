@@ -19,6 +19,7 @@ from typing import List, Optional
 from fastapi import Depends, FastAPI, Header, HTTPException, status
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials
+from sqlalchemy.exc import TimeoutError as PoolTimeout
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -67,12 +68,18 @@ app = FastAPI(
 )
 
 
+@app.exception_handler(PoolTimeout)
+async def db_busy(_request, _exc) -> JSONResponse:
+    """All pooled DB connections busy for POOL_TIMEOUT_S -> 503 + Retry-After instead of a 500 (Load test)."""
+    return JSONResponse({"detail": "Service busy, try again"}, status_code=503, headers={"Retry-After": "1"})
+
+
 # ==============================================================================
 # HEALTHCHECK & READINESS ENDPOINTS
 # ==============================================================================
 
 @app.get("/health", tags=["System"])
-def health() -> dict:
+async def health() -> dict:
     """Liveness check: Indicates the service process is up."""
     return {"status": "ok", "service": "user-service"}
 
@@ -104,7 +111,7 @@ def ready() -> JSONResponse:
     tags=["Authentication"],
     summary="User login (Direct path)",
 )
-def login(body: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse:
+def login(body: LoginRequest, db: Session = Depends(get_db, scope="function")) -> TokenResponse:
     """Log in with username and password.
 
     Verifies password using bcrypt and returns a signed JWT access token (HS256).
@@ -138,7 +145,7 @@ def resolve_user_id(
 )
 def get_my_profile(
     user_id: str = Depends(resolve_user_id),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ) -> UserProfile:
     """Get full name, phone number, email, and available balance for the logged-in user.
 
@@ -155,7 +162,7 @@ def get_my_profile(
 )
 def get_my_balance(
     user_id: str = Depends(resolve_user_id),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ) -> AccountBalanceResponse:
     """Inquire the available balance for the authenticated user."""
     balance = get_account_balance(db, user_id)
@@ -181,7 +188,7 @@ def get_my_balance(
 def list_history(
     user_id: str = Depends(resolve_user_id),
     limit: int = 100,
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ) -> List[TransactionHistoryItem]:
     """Retrieve transaction history of the authenticated user, sorted newest first."""
     return get_transaction_history(db, user_id, limit=limit)
@@ -197,7 +204,7 @@ def list_history(
     tags=["Internal"],
     summary="Retrieve payer contact info for payment and notification services",
 )
-def get_user_internal(user_id: str, db: Session = Depends(get_db)) -> UserProfile:
+def get_user_internal(user_id: str, db: Session = Depends(get_db, scope="function")) -> UserProfile:
     """Internal API for payment-service and otp-service to fetch payer details for OTP/receipt."""
     return get_user_profile(db, user_id)
 
@@ -218,7 +225,7 @@ def get_user_internal(user_id: str, db: Session = Depends(get_db)) -> UserProfil
     tags=["Internal"],
     summary="Conditional debit (alias)",
 )
-def debit_account_endpoint(body: DebitRequest, db: Session = Depends(get_db)) -> DebitResponse:
+def debit_account_endpoint(body: DebitRequest, db: Session = Depends(get_db, scope="function")) -> DebitResponse:
     """Task 4: Deduct money from payer account conditionally and atomically.
 
     - Condition: Only deducts if balance >= amount.
@@ -239,7 +246,7 @@ def debit_account_endpoint(body: DebitRequest, db: Session = Depends(get_db)) ->
     tags=["Internal"],
     summary="Refund account balance (alias)",
 )
-def credit_account_endpoint(body: CreditRequest, db: Session = Depends(get_db)) -> CreditResponse:
+def credit_account_endpoint(body: CreditRequest, db: Session = Depends(get_db, scope="function")) -> CreditResponse:
     """Task 4 Compensation: Refund money if a downstream step (like tuition commit) fails."""
     return credit_user_account(db, body.user_id, body.amount, body.transaction_id)
 
@@ -252,7 +259,7 @@ def credit_account_endpoint(body: CreditRequest, db: Session = Depends(get_db)) 
 )
 def record_history_endpoint(
     body: RecordHistoryRequest,
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ) -> TransactionHistoryItem:
     """Internal API for payment-service to record transaction outcomes in user history."""
     record = record_transaction_history(

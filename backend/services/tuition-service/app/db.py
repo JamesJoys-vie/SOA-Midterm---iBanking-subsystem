@@ -1,5 +1,6 @@
 """Database engine, session management, and startup initialization for tuition-service."""
 import logging
+import os
 import time
 from collections.abc import Iterator
 
@@ -16,10 +17,20 @@ connect_args = {}
 if settings.database_url.startswith("sqlite"):
     connect_args["check_same_thread"] = False
 
+# MySQL pool (Load test): wait at most POOL_TIMEOUT_S for a connection, then main.py answers 503.
+# It must stay well below the gateway timeout (20 s), or requests nobody waits for any more pile up here.
+POOL_TIMEOUT_S = 5
+pool_args = {} if settings.database_url.startswith("sqlite") else {
+    "pool_timeout": POOL_TIMEOUT_S,
+    "pool_recycle": 1800,
+    "pool_size": int(os.getenv("DB_POOL_SIZE", "10")),
+    "max_overflow": int(os.getenv("DB_MAX_OVERFLOW", "20")),
+}
 engine = create_engine(
     settings.database_url,
     pool_pre_ping=True,
     connect_args=connect_args,
+    **pool_args,
 )
 
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
@@ -31,7 +42,12 @@ class Base(DeclarativeBase):
 
 
 def get_db() -> Iterator[Session]:
-    """FastAPI Dependency: Yields a database session per request and closes it afterwards."""
+    """FastAPI Dependency: Yields a database session per request and closes it afterwards.
+
+    Routes use Depends(get_db, scope="function"): the session closes as soon as the endpoint returns. With the
+    default (request) scope it still holds its connection while FastAPI validates the response in a second
+    threadpool step; under load every connection then waits for a thread and every thread for a connection.
+    """
     db = SessionLocal()
     try:
         yield db

@@ -56,6 +56,20 @@ def test_same_idempotency_key_returns_same_transaction(env):
         env.saga.initiate("u2", "S1", KEY)  # key of another user
 
 
+def test_same_key_twin_that_already_held_the_tuition_gets_its_transaction(env, monkeypatch):
+    """Parallel duplicates: the twin's transaction and hold appear after our first key check -> no 409."""
+    first = env.saga.initiate("u1", "S1", KEY)
+    real_replay, calls = env.saga._replay, []
+
+    def first_check_misses(key, user_id):
+        calls.append(key)
+        return None if len(calls) == 1 else real_replay(key, user_id)
+    monkeypatch.setattr(env.saga, "_replay", first_check_misses)
+    assert env.saga.initiate("u1", "S1", KEY).id == first.id
+    with pytest.raises(Conflict):
+        env.saga.initiate("u1", "S1", "key-0002-abcd")  # another key: the tuition really is held elsewhere
+
+
 def test_bad_idempotency_key(env):
     with pytest.raises(BadRequest):
         env.saga.initiate("u1", "S1", "short")
