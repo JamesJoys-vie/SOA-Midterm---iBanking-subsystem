@@ -1,0 +1,4 @@
+Method,Name,Error,Occurrences,First Seen,Last Seen
+POST,POST /transactions,"CatchResponseError('502 {""detail"":""tuition-service is unavailable (ReadTimeout: timed out)""}')",21,2026-11-02T05:07:25Z,2026-11-02T05:07:25Z
+GET,GET /tuitions/[mssv],"CatchResponseError('502 {""detail"":""tuition-service is unavailable, try again""}')",852,2026-11-02T05:07:29Z,2026-11-02T05:10:26Z
+POST,POST /transactions,"CatchResponseError('502 {""detail"":""payment-service is unavailable, try again""}')",18,2026-11-02T05:07:29Z,2026-11-02T05:07:29Z
