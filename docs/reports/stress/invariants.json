@@ -1,0 +1,33 @@
+{
+  "checked_at": "2026-11-02T05:24:01.201507Z",
+  "transactions": {
+    "SUCCESS": 4424,
+    "FAILED": 104,
+    "EXPIRED": 70,
+    "CANCELLED": 108
+  },
+  "failed_reasons": {
+    "Tuition hold refused: Tuition is being paid by another transaction": 97,
+    "Insufficient balance: 600000.00 < 5600000.00": 1,
+    "Insufficient balance: 0.00 < 2500000.00": 1,
+    "Insufficient balance: 600000.00 < 4300000.00": 1,
+    "Insufficient balance: 1100000.00 < 4500000.00": 1,
+    "Insufficient balance: 2500000.00 < 4100000.00": 1,
+    "Insufficient balance: 0.00 < 5100000.00": 1,
+    "Insufficient balance: 1100000.00 < 2000000.00": 1
+  },
+  "ledger_entries": 4424,
+  "net_debited": "9235600000.00",
+  "tuition_paid_total": "9235600000.00",
+  "tuitions_paid": 4424,
+  "after_settle": {
+    "processing": 0,
+    "pending_otp": 0,
+    "unpublished_outbox": 0,
+    "refund_pending": 0
+  },
+  "stale_holds_warning": 0,
+  "history_mismatch_warning": {},
+  "violations": {},
+  "passed": true
+}

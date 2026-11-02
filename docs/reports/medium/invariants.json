@@ -1,0 +1,33 @@
+{
+  "checked_at": "2026-11-02T05:19:28.636093Z",
+  "transactions": {
+    "SUCCESS": 4636,
+    "CANCELLED": 72,
+    "FAILED": 134,
+    "EXPIRED": 86
+  },
+  "failed_reasons": {
+    "Tuition hold refused: Tuition is being paid by another transaction": 127,
+    "Insufficient balance: 2000000.00 < 2600000.00": 1,
+    "Insufficient balance: 2000000.00 < 4300000.00": 1,
+    "Insufficient balance: 1900000.00 < 2000000.00": 1,
+    "Insufficient balance: 2700000.00 < 5900000.00": 1,
+    "user-service: Insufficient balance to complete the tuition payment": 1,
+    "Tuition hold refused: Tuition for this student is already paid": 1,
+    "Insufficient balance: 1500000.00 < 2700000.00": 1
+  },
+  "ledger_entries": 4636,
+  "net_debited": "9627300000.00",
+  "tuition_paid_total": "9627300000.00",
+  "tuitions_paid": 4636,
+  "after_settle": {
+    "processing": 0,
+    "pending_otp": 0,
+    "unpublished_outbox": 0,
+    "refund_pending": 0
+  },
+  "stale_holds_warning": 0,
+  "history_mismatch_warning": {},
+  "violations": {},
+  "passed": true
+}

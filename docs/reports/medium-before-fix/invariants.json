@@ -1,0 +1,62 @@
+{
+  "checked_at": "2026-11-02T05:12:58.773467Z",
+  "transactions": {
+    "SUCCESS": 279,
+    "FAILED": 21,
+    "PROCESSING": 28,
+    "EXPIRED": 7,
+    "CANCELLED": 2
+  },
+  "failed_reasons": {
+    "tuition-service unavailable": 18,
+    "Tuition hold refused: Tuition is being paid by another transaction": 3
+  },
+  "ledger_entries": 289,
+  "net_debited": "682400000.00",
+  "tuition_paid_total": "674400000.00",
+  "tuitions_paid": 284,
+  "after_settle": {
+    "processing": 28,
+    "pending_otp": 0,
+    "unpublished_outbox": 0,
+    "refund_pending": 0
+  },
+  "stale_holds_warning": 30,
+  "history_mismatch_warning": {},
+  "violations": {
+    "I3 ledger does not match status": [
+      "0c8a7f4f-7412-4dc9-875e-6dacdbebbb10 PROCESSING: ()",
+      "3ab2a8b4-dc29-428c-8123-31f037a50eae PROCESSING: ()",
+      "52fb7123-a785-4b93-b332-bfe2285108a8 PROCESSING: ()",
+      "5d2e00b2-c4da-43da-b272-c968830082b4 PROCESSING: ()",
+      "656dfd42-e3c9-487c-9727-fe2d7ae1ecbe PROCESSING: ()",
+      "6a978693-0c34-4c74-a8e6-f382b5d5805d PROCESSING: ()",
+      "6ed8c692-4929-44fa-b342-6f7067c62fd1 PROCESSING: ()",
+      "7a6f0346-f1d2-47c5-90df-cb0ec910e80e PROCESSING: ()",
+      "89eb4004-05fb-43f6-bd58-b448ab2fad8a PROCESSING: ()",
+      "94249031-49bd-4dcb-893a-99415751f9ec PROCESSING: ()",
+      "9603c6ba-18d7-481c-b104-93bf574b68c8 PROCESSING: ()",
+      "a11ba738-d91b-4e7f-8706-6181488e3878 PROCESSING: ()",
+      "b4e89611-cc7c-4f15-9af8-41358ae20cdb PROCESSING: ()",
+      "c285fb89-fb95-4b3c-b5af-f3f2a7c00373 PROCESSING: ()",
+      "e204be5c-589f-4b79-9781-de939a50747f PROCESSING: ()",
+      "ec0d87ea-24ab-43f5-9833-1ceae3d9fc59 PROCESSING: ()",
+      "f5649d6b-8819-420e-aa71-39cae32230e7 PROCESSING: ()",
+      "f9b4a312-f36d-4d60-ad0b-0c7c7bb8e889 PROCESSING: ()"
+    ],
+    "I4 PAID tuition without SUCCESS transaction": [
+      "00832891-2195-59f1-beda-217a498d8cf6 (LTN00062) paid_by 926ef043-fbc2-4a75-976d-1ec9320bb5ee: PROCESSING",
+      "239099a0-96f6-5be0-9940-1c5a5347079a (LTN00059) paid_by 26ecdf84-f801-4137-ab14-77f7d888201f: PROCESSING",
+      "a1e299bc-9ef8-5fe6-a86d-8f5c0b2528c7 (LTN00046) paid_by 7af84d06-8f14-4624-94a7-0308204eaf83: PROCESSING",
+      "cde12ad9-b7bd-57f5-9245-084c3b8b9b86 (LTN00028) paid_by f76f0b08-3396-469d-b996-7e7172ebf2a2: PROCESSING",
+      "fb379fdf-3743-5542-bf65-d083a0a7eb4c (LTN00021) paid_by 1580856b-4887-453b-af6a-23e54865d381: PROCESSING"
+    ],
+    "I6 money out != tuition paid": [
+      "net debited 682400000.00 vs paid tuitions 674400000.00"
+    ],
+    "I8 stuck transactions": [
+      "{'processing': 28, 'pending_otp': 0, 'unpublished_outbox': 0, 'refund_pending': 0}"
+    ]
+  },
+  "passed": false
+}
