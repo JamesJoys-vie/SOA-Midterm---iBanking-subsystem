@@ -1,4 +1,4 @@
-"""PNG version of the Locust report.html charts, drawn from the run's stats_stats_history.csv.
+"""Charts of a Locust run as a PNG (the charts of Locust's HTML report), drawn from the run's stats_stats_history.csv.
 
     python plot_report.py /reports/medium [/reports/stress ...]     -> <run>/report.png
 

@@ -1,6 +1,6 @@
 """Locust load test for the tuition payment flow (runs in the `loadtest` container, see docker-compose.loadtest.yml).
 
-    locust -f locustfile.py --headless -u 100 -r 10 -t 3m --csv /reports/<run>/stats --html /reports/<run>/report.html
+    locust -f locustfile.py --headless -u 100 -r 10 -t 3m --csv /reports/<run>/stats
 
 Virtual users (weights = share of the users spawned):
   PayerUser         (8)  normal customer: pays its OWN student over and over (lookup -> initiate -> OTP -> verify),
