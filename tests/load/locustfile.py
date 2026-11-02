@@ -72,7 +72,7 @@ class Base(HttpUser):
                 raise StopUser()
         self.client.headers["Authorization"] = f"Bearer {r.json()['access_token']}"
 
-    # ------------------------------------------------------------------ helpers
+    # helpers
     def call(self, method: str, path: str, name: str, expect=(200,), **kw):
         """Request that counts as a Locust success only if the status is one of `expect`."""
         with self.client.request(method, f"/api{path}", name=name, catch_response=True, **kw) as r:
