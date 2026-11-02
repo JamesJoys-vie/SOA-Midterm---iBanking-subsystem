@@ -1,0 +1,49 @@
+# Load-test mode. Layered on top of docker-compose.yml:
+#   docker compose -f docker-compose.yml -f docker-compose.loadtest.yml up -d --build
+# It changes the stack ONLY for testing (do not use it for a demo or a public tunnel):
+#   * otp-service keeps the plain OTP readable at /internal/test/otp/{id} (internal network only)
+#   * gateway rate limits x1000 (every virtual user comes from the same container IP)
+#   * shorter OTP / hold windows so abandoned payments expire within a test run
+#   * SMTP disabled: thousands of OTP / receipt emails go to the notification-service log, not to a real inbox
+# The `loadtest` toolbox (profile "loadtest") runs seed/reset, Locust, pytest and the invariant checker:
+#   ... --profile loadtest run --rm loadtest python lt_data.py seed        (once)
+#   ... --profile loadtest run --rm loadtest pytest -v                     (race tests)
+#   ... --profile loadtest run --rm loadtest sh run_level.sh small 50 5 3m (one load level, results in docs/reports/)
+services:
+  otp-service:
+    environment:
+      OTP_TEST_ECHO: "true"
+      OTP_TTL_SECONDS: 60
+  payment-service:
+    environment:
+      OTP_TTL_SECONDS: 60
+  tuition-service:
+    environment:
+      RESERVATION_TTL_SECONDS: 120
+  notification-service:
+    environment:
+      SMTP_HOST: ""
+      SMTP_USER: ""
+      SMTP_PASSWORD: ""
+  gateway:
+    environment:
+      RATE_LIMIT_MULTIPLIER: 1000
+
+  loadtest:
+    build: ./tests
+    profiles: ["loadtest"]
+    environment:
+      BASE_URL: http://web               # through nginx -> gateway, like the browser
+      OTP_SERVICE_URL: http://otp-service:8000
+      # each database with its own service's MySQL user (as the seed service does)
+      USERS_DB_URL: mysql+pymysql://user_svc:${USER_DB_PASSWORD}@mysql:3306/users_db
+      TUITION_DB_URL: mysql+pymysql://tuition_svc:${TUITION_DB_PASSWORD}@mysql:3306/tuition_db
+      PAYMENTS_DB_URL: mysql+pymysql://payment_svc:${PAYMENT_DB_PASSWORD}@mysql:3306/payments_db
+    volumes:
+      - ./tests:/tests
+      - ./docs/reports:/reports
+    ports:
+      - "8089:8089"                      # Locust web UI (interactive runs)
+    depends_on:
+      web: { condition: service_started }
+      otp-service: { condition: service_healthy }

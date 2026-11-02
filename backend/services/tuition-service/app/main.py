@@ -15,6 +15,7 @@ from typing import Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Query, status
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import TimeoutError as PoolTimeout
 from sqlalchemy.orm import Session
 
 from app.db import db_is_up, get_db, init_db
@@ -54,12 +55,18 @@ app = FastAPI(
 )
 
 
+@app.exception_handler(PoolTimeout)
+async def db_busy(_request, _exc) -> JSONResponse:
+    """All pooled DB connections busy for POOL_TIMEOUT_S -> 503 + Retry-After instead of a 500 (Load test)."""
+    return JSONResponse({"detail": "Service busy, try again"}, status_code=503, headers={"Retry-After": "1"})
+
+
 # ==============================================================================
 # HEALTHCHECK & READINESS ENDPOINTS
 # ==============================================================================
 
 @app.get("/health", tags=["System"])
-def health() -> dict:
+async def health() -> dict:
     """Liveness check: Indicates the process is up."""
     return {"status": "ok", "service": "tuition-service"}
 
@@ -88,7 +95,7 @@ def ready() -> JSONResponse:
 def get_tuition_by_query(
     mssv: Optional[str] = Query(None, description="Student ID (e.g. 52100001, 521H0081)"),
     student_id: Optional[str] = Query(None, description="Alias for mssv"),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ) -> TuitionInfo:
     """Task 2b: Enter MSSV -> auto-lookup student name and full tuition amount.
 
@@ -111,7 +118,7 @@ def get_tuition_by_query(
 )
 def get_tuition_by_path(
     student_id: str,
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ) -> TuitionInfo:
     """Look up student tuition liability via path parameter /tuitions/{student_id}."""
     return lookup_tuition(db, student_id)
@@ -136,7 +143,7 @@ def get_tuition_by_path(
 def reserve_tuition_endpoint(
     tuition_id: str,
     body: ReserveRequest,
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ) -> TuitionInfo:
     """Task 2: Conditional reservation hold.
 
@@ -165,7 +172,7 @@ def reserve_tuition_endpoint(
 def commit_tuition_endpoint(
     tuition_id: str,
     body: CommitRequest,
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ) -> CommitResponse:
     """Task 4: Mark-paid (only transaction holding the lock).
 
@@ -194,7 +201,7 @@ def commit_tuition_endpoint(
 def release_tuition_endpoint(
     tuition_id: str,
     body: ReleaseRequest,
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
 ) -> ReleaseResponse:
     """Release tuition hold when transaction is cancelled or saga step fails."""
     return release_tuition(db, tuition_id, body.transaction_id)

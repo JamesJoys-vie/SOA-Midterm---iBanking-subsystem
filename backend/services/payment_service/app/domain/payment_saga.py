@@ -51,7 +51,15 @@ class PaymentSaga:
             return replay  # same key sent again (double click / retry) -> same transaction
 
         payer = self._call(self.users.get_payer, user_id)  # payer = the logged-in account, never client data
-        tuition = self._payable_tuition(student_id)  # amount always comes from tuition-service
+        try:
+            tuition = self._payable_tuition(student_id)  # amount always comes from tuition-service
+        except Conflict:
+            # A duplicate of this request (same key) may have created its transaction and held the tuition after
+            # our first key check: answer with that transaction, not "being paid by another" (Load test).
+            replay = self._replay(key, user_id)
+            if replay:
+                return replay
+            raise
         self._ensure_balance(payer.balance, tuition.amount)
 
         txn = self.repo.create(Transaction(payer_user_id=user_id, student_id=tuition.student_id,
