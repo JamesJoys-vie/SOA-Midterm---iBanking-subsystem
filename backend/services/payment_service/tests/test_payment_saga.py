@@ -70,6 +70,30 @@ def test_same_key_twin_that_already_held_the_tuition_gets_its_transaction(env, m
         env.saga.initiate("u1", "S1", "key-0002-abcd")  # another key: the tuition really is held elsewhere
 
 
+def test_same_key_twin_that_inserted_first_gets_its_transaction(env, monkeypatch):
+    """Parallel duplicates: both pass the checks, the twin's INSERT wins -> ours hits the unique key -> replay."""
+    first = env.saga.initiate("u1", "S1", KEY)
+    env.tuitions.release(first.tuition_id, first.id)  # tuition looks free again, as before the twin's hold
+    real_replay, calls = env.saga._replay, []
+
+    def first_check_misses(key, user_id):
+        calls.append(key)
+        return None if len(calls) == 1 else real_replay(key, user_id)
+    monkeypatch.setattr(env.saga, "_replay", first_check_misses)
+    assert env.saga.initiate("u1", "S1", KEY).id == first.id
+    assert len(calls) == 2  # second look came from the IntegrityError path, not the 409 path
+
+
+def test_parallel_duplicates_with_same_key_all_get_one_transaction(env):
+    """Load-test scenario: 10 copies of one request (same Idempotency-Key) at once -> 1 transaction, no 409.
+    """
+    results = run_parallel(10, lambda i: env.new_saga().initiate("u1", "S1", KEY))
+    assert not [r for r in results if isinstance(r, Exception)]
+    assert len({r.id for r in results}) == 1
+    assert env.tuitions.rows["S1"]["by"] == results[0].id
+    assert list(env.otps.codes) == [results[0].id]  # one OTP email, not ten
+
+
 def test_bad_idempotency_key(env):
     with pytest.raises(BadRequest):
         env.saga.initiate("u1", "S1", "short")
