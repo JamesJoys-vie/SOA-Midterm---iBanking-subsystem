@@ -58,7 +58,7 @@ React 18 + Vite + Tailwind, TanStack Query; screens follow `docs/wireframes/wire
 | `payment_service` (saga, idempotency, outbox relay, expiry job, Alembic migration) + tests | Binh | done |
 | `docker-compose.yml` (MySQL, Redis, Adminer, all services, gateway, web, ngrok profile) | Binh | done |
 | `race_demo.py` + `docker-compose.demo.yml` (same account / same tuition races) | Binh | done |
-| Load tests (Locust, pytest races, invariant checker) | - | planned |
+| Load tests (Locust, pytest races, invariant checker) + fixes they found, `docs/reports/LOAD_TEST_REPORT.md` | Duy | done |
 
 ## Run
 1. `Copy-Item .env.example .env` and fill in the passwords, `JWT_SECRET`, `OTP_EVENT_KEY` (command in
@@ -78,3 +78,9 @@ Frontend alone: `cd frontend; npm install; npm run dev` (serves :5173, proxies `
 Tests (from each service folder, with `pip install -r backend/requirements.txt pytest fakeredis email-validator`):
 `python -m pytest -q tests`. The otp-service and notification-service tests need a real Redis (db 15, flushed);
 run them inside the compose network with the command at the top of `test_otp_store.py` / `tests/conftest.py`.
+
+Load and concurrency tests (`tests/load/`, results and analysis in `docs/reports/LOAD_TEST_REPORT.md`). Start the
+stack in load-test mode, `docker compose -f docker-compose.yml -f docker-compose.loadtest.yml up -d --build`, then with
+the same two `-f` files and `--profile loadtest run --rm loadtest`: `python lt_data.py seed` (once), `pytest -v`
+(race tests) or `sh run_level.sh medium 150 10 3m` (one load level, writes `docs/reports/medium/`). Load-test mode
+exposes the OTPs and lifts the rate limits: never use it for a demo or the ngrok link.
