@@ -11,7 +11,7 @@ Machine-readable specs, exported from the code: `docs/api/openapi/<service>.json
 | Method & path | Request | Success | Errors |
 |---|---|---|---|
 | POST /auth/login | `{username, password}` | 200 `{access_token, token_type: "bearer", expires_in}` (seconds, 1800) | 401, 429 |
-| GET /users/me | - | 200 `UserProfile` | 401 |
+| GET /users/me | - | 200 `UserProfile` | 401, 404 (no account) |
 | GET /accounts/me | - | 200 `{balance}` | 401, 404 (no account) |
 | GET /tuitions/{mssv} | - | 200 `TuitionInfo` | 401, 404 (student / tuition not found) |
 | POST /transactions (header `Idempotency-Key`, 8-64 chars, e.g. a UUID) | `{student_id}` | 201 `Transaction` with `status` `PENDING_OTP` and `otp_expires_in` (same key again -> the same transaction, also 201) | 400, 401, 404, 409 (paid / reserved / key used by another user), 422 (insufficient balance), 429, 502 |
@@ -69,7 +69,8 @@ Called by payment-service only (its saga and its expiry / reconcile job). No JWT
 
 | Service | Method & path | Request | Success | Errors |
 |---|---|---|---|---|
-| user | GET /internal/users/{user_id} | - | 200 `UserProfile` (payer email + name for the OTP / receipt emails) | 404 |
+| user | GET /internal/users/{user_id} | - | 200 `UserProfile` (payer email + name for the OTP / receipt emails) | 404 (no user or account) |
+| user | POST /internal/history | `{user_id, student_id, tuition_id, amount, status, failure_reason}` | 200 `TransactionHistoryItem` | 404 (no account) |
 | tuition | GET /tuitions/{mssv} | - | 200 `TuitionInfo` (same route as the public one, called directly) | 404 |
 | tuition | POST /internal/tuitions/{tuition_id}/reserve | `{transaction_id}` | 200 `TuitionInfo` with `status` `RESERVED`; hold for 10 min. Same transaction again -> 200 and the hold is extended | 404, 409 (paid, or held by another transaction) |
 | tuition | POST /internal/tuitions/{tuition_id}/commit | `{transaction_id}` | 200 `{status: "PAID"}` (also when already paid by this transaction) | 404, 409 (not reserved by this transaction) |

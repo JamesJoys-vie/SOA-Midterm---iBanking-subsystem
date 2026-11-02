@@ -16,7 +16,7 @@ os.environ["JWT_EXPIRE_MINUTES"] = "30"
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -31,6 +31,16 @@ test_engine = create_engine(
     connect_args={"check_same_thread": False},
     poolclass=StaticPool,
 )
+
+
+@event.listens_for(test_engine, "connect")
+def set_sqlite_pragma(dbapi_connection, connection_record):
+    """Enforce foreign key constraints in SQLite in-memory tests."""
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.close()
+
+
 TestingSessionLocal = sessionmaker(bind=test_engine, autoflush=False, expire_on_commit=False)
 
 
@@ -86,3 +96,21 @@ def sample_user(db_session: Session) -> User:
     db_session.commit()
     db_session.refresh(user)
     return user
+
+
+@pytest.fixture
+def user_without_account(db_session: Session) -> User:
+    """Seed a user who has no associated bank account."""
+    user = User(
+        id="user-no-acc-uuid",
+        username="noacc_user",
+        password_hash=hash_password("Password123!"),
+        full_name="No Account User",
+        phone="0900000099",
+        email="noacc@example.com",
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    return user
+
