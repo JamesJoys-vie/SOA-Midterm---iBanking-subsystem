@@ -10,9 +10,9 @@ flowchart LR
   end
 
   subgraph SERVICES [Microservices - internal network only]
-    US[User Service<br/>login, profile]
+    US[User Service<br/>login, profile, balance, history]
     TS[Tuition Service<br/>lookup, reservation hold]
-    PS[Payment Service<br/>account, transactions, saga]
+    PS[Payment Service<br/>transactions, saga]
     OTP[OTP Service<br/>issue / verify OTP]
     NS[Notification Service<br/>emails]
     subgraph PSW [Payment Service background threads]
@@ -21,24 +21,25 @@ flowchart LR
     end
   end
 
-  GW -->|"auth/*, users/*"| US
+  GW -->|"auth/login, users/me, accounts/me, history"| US
   GW -->|"tuitions/*"| TS
-  GW -->|"accounts/*, transactions/*"| PS
+  GW -->|"transactions/*"| PS
   GW -->|INCR rate-limit counters| RL
 
-  PS -->|"GET /internal/users/{id} (payer email)"| US
+  PS -->|"GET /internal/users/{id} (payer); POST /internal/accounts/debit, credit; POST /internal/history"| US
   PS -->|"GET /tuitions/{mssv}; POST /internal/tuitions/{id}/reserve, commit, release"| TS
   PS -->|"POST /internal/otp, /internal/otp/verify"| OTP
   EJ -->|"expire PENDING_OTP, retry commit of PROCESSING"| TS
+  EJ -->|"finish debit of PROCESSING, retry refund (credit)"| US
 
   OR -.->|"XADD payment.completed"| RS
   OTP -.->|"XADD otp.requested"| RS
   RS -.->|"XREADGROUP / XACK, consumer group notification"| NS
   NS -->|SMTP| MAIL[(Mail server)]
 
-  US --> DB1[(MySQL users_db)]
-  TS --> DB3[(MySQL tuition_db)]
-  PS --> DB2[(MySQL payments_db)]
+  US -->|"users, accounts, ledger, history"| DB1[(MySQL users_db)]
+  TS -->|"students, tuitions"| DB3[(MySQL tuition_db)]
+  PS -->|"transactions, outbox_events"| DB2[(MySQL payments_db)]
   OR -->|read outbox_events| DB2
   EJ --> DB2
   OTP -->|OTP keys with TTL, Lua scripts| R

@@ -1,15 +1,40 @@
 classDiagram
-  class Account { +id; +userId; +balance; +version; +debit(amount) }
-  class Transaction { +id; +studentId; +amount; +status; +idempotencyKey }
-  class LedgerEntry { +id; +amount; +balanceAfter }
-  class PaymentSaga { +initiate(cmd); +verifyAndExecute(txnId, otp); -compensate(txn) }
-  class TuitionClient { +reserve(); +commit(); +release() }
-  class OtpClient { +issue(txnId); +verify(txnId, code) }
-  class OutboxPublisher { +publish(event) }
-  Account "1" --> "*" Transaction
-  Transaction "1" --> "0..2" LedgerEntry : DEBIT, refund CREDIT
-  PaymentSaga --> Account
-  PaymentSaga --> Transaction
+  %% payment-service (backend/services/payment_service/app). Accounts and the ledger belong to user-service:
+  %% the saga reaches them only through UserClient (REST), never directly.
+  class PaymentSaga {
+    +initiate(userId, studentId, idempotencyKey) Transaction
+    +confirm(userId, txnId, otp) Transaction
+    +resendOtp(userId, txnId) int
+    +cancel(userId, txnId) Transaction
+    +expire(txn) bool
+    +complete(txnId) Transaction
+    +retryRefund(txn) bool
+    -fail(txn, reason)
+  }
+  class Transaction {
+    +id; +payerUserId; +studentId; +tuitionId; +amount
+    +status; +idempotencyKey; +debited; +needsRefund; +expiresAt
+  }
+  class OutboxEvent { +id; +type; +payload; +published }
+  class TransactionRepository {
+    +create(txn); +transition(id, from, to)
+    +markSuccess(id, balanceAfter, eventType, payload)
+    +findExpiredPending(); +findStuckProcessing(); +findPendingRefunds()
+  }
+  class UserClient { +getPayer(userId); +debit(userId, amount, txnId); +refund(userId, amount, txnId); +recordHistory() }
+  class TuitionClient { +lookup(studentId); +reserve(tuitionId, txnId); +commit(); +release() }
+  class OtpClient { +issue(txnId, email, fullName); +verify(txnId, code) }
+  class PeriodicWorker { <<abstract>> +start(); +stop(); +runOnce() }
+  class OutboxRelay { +runOnce() }
+  class ExpiryJob { +runOnce() }
+
+  PaymentSaga --> TransactionRepository
+  PaymentSaga --> UserClient : debit / refund via user-service
   PaymentSaga --> TuitionClient
   PaymentSaga --> OtpClient
-  PaymentSaga --> OutboxPublisher
+  TransactionRepository --> Transaction
+  TransactionRepository --> OutboxEvent : written in the SUCCESS commit
+  PeriodicWorker <|-- OutboxRelay
+  PeriodicWorker <|-- ExpiryJob
+  OutboxRelay --> OutboxEvent : publish to Redis Streams
+  ExpiryJob --> PaymentSaga : expire / complete / retryRefund
