@@ -15,6 +15,7 @@ from decimal import Decimal
 from typing import List, Optional
 
 from fastapi import HTTPException, status
+from fastapi import status as http_status
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
@@ -69,7 +70,7 @@ def authenticate_user(db: Session, username: str, password: str) -> TokenRespons
 def get_user_profile(db: Session, user_id: str) -> UserProfile:
     """Retrieve user profile information along with current available balance (GET /me).
 
-    Automatically initializes an account with 0.00 balance if not already present.
+    Requires an existing payment account; returns 404 if account is missing.
     """
     user = db.get(User, user_id)
     if not user:
@@ -81,10 +82,10 @@ def get_user_profile(db: Session, user_id: str) -> UserProfile:
     # Find associated payment account
     account = db.scalar(select(Account).where(Account.user_id == user.id))
     if not account:
-        account = Account(user_id=user.id, balance=Decimal("0.00"), version=0)
-        db.add(account)
-        db.commit()
-        db.refresh(account)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Payment account not found for this user",
+        )
 
     return UserProfile(
         id=user.id,
@@ -315,10 +316,14 @@ def record_transaction_history(
 ) -> TransactionHistory:
     """Record payment transaction history entry."""
     account = db.scalar(select(Account).where(Account.user_id == user_id))
-    account_id = account.id if account else "unknown-account"
+    if not account:
+        raise HTTPException(
+            status_code=http_status.HTTP_404_NOT_FOUND,
+            detail="Payment account not found for this user",
+        )
 
     history_record = TransactionHistory(
-        account_id=account_id,
+        account_id=account.id,
         payer_user_id=user_id,
         student_id=student_id,
         tuition_id=tuition_id,

@@ -1,6 +1,6 @@
 # Services: responsibilities, data and calls
 
-Who owns which data, who calls whom, and what lives in Redis. Written from the code on `main` (2026-10-31).
+Who owns which data, who calls whom, and what lives in Redis. Written from the code on `main` (2026-10-31, updated 2026-11-02 after PR #22).
 Public request / response details: [`docs/api/endpoints.md`](../api/endpoints.md). Picture:
 [`docs/diagrams/architecture.mmd`](../diagrams/architecture.mmd).
 
@@ -40,7 +40,7 @@ Internal calls (compose network only, no JWT), all made by payment-service:
 
 | To | Call | Used for |
 |---|---|---|
-| user | `GET /internal/users/{user_id}` | payer name, email and current balance (never taken from the client) |
+| user | `GET /internal/users/{user_id}` | payer name, email and current balance (never taken from the client); 404 if the user or account is missing |
 | user | `POST /internal/accounts/debit` `{user_id, amount, transaction_id}` | take the money: only if `balance >= amount`, at most once per transaction (ledger unique key) -> `balance_after` |
 | user | `POST /internal/accounts/credit` `{user_id, amount, transaction_id}` | refund (compensation of the debit), at most once per transaction |
 | user | `POST /internal/history` `{user_id, student_id, tuition_id, amount, status, failure_reason}` | write the final result to the user's history (not idempotent, so never retried) |
@@ -98,16 +98,14 @@ code puts **accounts, ledger and history in user-service** (`users_db`); payment
 and the outbox, and debits / refunds through `POST /internal/accounts/debit` / `credit`. `erd.mmd`,
 `architecture.mmd` and `docs/api/endpoints.md` were corrected to match (2026-10-31).
 
+## 7. A user without an account (fixed in PR #22)
+Rule: **no account -> 404 "Payment account not found for this user"**, on every user-service endpoint
+(`GET /users/me`, `GET /accounts/me`, `GET /internal/users/{id}`, `POST /internal/history`). Reads never create an
+account; accounts are only created by `seed.py` (there is no sign-up). payment-service treats that 404 as a clear
+refusal, so a payment for such a user fails with a reason.
 
-## Bugs (?)
-Minor code smell (user-service, not changed here): `record_transaction_history` falls back to
-`account_id = "unknown-account"` when the payer has no `accounts` row. That value breaks the foreign key, so the
-fallback would fail rather than help. It cannot be reached in this system: every seeded user has an account, there
-is no sign-up, and `GET /internal/users/{id}` (called by payment-service before any payment starts) creates a missing
-account with balance 0. Only deleting an account row by hand during a payment could trigger it, and even then
-payment-service catches the error and only that history row is missing. Raising 404 instead would be cleaner.
-The root cause is that `get_user_profile` (`GET /users/me`, `GET /internal/users/{id}`) creates a missing account
-during a read, while `GET /accounts/me` answers 404 for the same user. Reproduced on MySQL (2026-10-31): the history
-call returns 500 (error 1452, foreign key), and concurrent first reads for a user without an account returned 500
-(duplicate `accounts.user_id`) in 14 of 500 calls. The user-service tests use SQLite, where foreign keys are off,
-so they cannot catch the first one.
+Before PR #22, `get_user_profile` created a 0-balance account during a read while `GET /accounts/me` answered 404,
+and `POST /internal/history` saved `account_id = "unknown-account"`. On MySQL that gave a 500 (foreign key error
+1452) for the history call, and 14 of 500 concurrent first reads failed with a duplicate `accounts.user_id`. Re-checked
+on MySQL on 2026-11-02: all four calls return 404, no account is created, 500 concurrent reads -> 500 x 404. The
+user-service tests now enable SQLite foreign keys and cover these cases.
