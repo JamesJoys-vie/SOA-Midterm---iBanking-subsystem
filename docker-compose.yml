@@ -16,6 +16,8 @@ services:
   mysql:
     image: mysql:8.4
     restart: unless-stopped
+    # max-connections (default 151): user + tuition (10 + 20 each) + payment (4 workers x 30) + seed / tools / Adminer
+    command: --max-connections=300
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       # read by backend/infra/mysql/01-create-databases.sh (one database + one user per service)
