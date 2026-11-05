@@ -5,6 +5,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import App from './App.jsx'
 import { AuthProvider } from './context/AuthContext.jsx'
 import { AmountVisibilityProvider } from './context/AmountVisibility.jsx'
+import '@fontsource/be-vietnam-pro/400.css'
+import '@fontsource/be-vietnam-pro/500.css'
+import '@fontsource/be-vietnam-pro/600.css'
+import '@fontsource/be-vietnam-pro/700.css'
 import './index.css'
 
 // Client errors (404 lookup, 401, 409...) are answers, not glitches: don't retry them.
