@@ -1,6 +1,6 @@
 # Load-test mode. Layered on top of docker-compose.yml:
 #   docker compose -f docker-compose.yml -f docker-compose.loadtest.yml up -d --build
-# It changes the stack ONLY for testing (do not use it for a demo or a public tunnel):
+# It changes the stack ONLY for testing (do not use it for a demo):
 #   * otp-service keeps the plain OTP readable at /internal/test/otp/{id} (internal network only)
 #   * gateway rate limits x1000 (every virtual user comes from the same container IP)
 #   * shorter OTP / hold windows so abandoned payments expire within a test run

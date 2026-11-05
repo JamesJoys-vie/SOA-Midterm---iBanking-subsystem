@@ -56,25 +56,44 @@ React 18 + Vite + Tailwind, TanStack Query; screens follow `docs/wireframes/wire
 | `seed.py` (demo data) | Hieu | done |
 | `gateway` (JWT guard, rate limiter, reverse proxy) + tests | Binh | done |
 | `payment_service` (saga, idempotency, outbox relay, expiry job, Alembic migration) + tests | Binh | done |
-| `docker-compose.yml` (MySQL, Redis, Adminer, all services, gateway, web, ngrok profile) | Binh | done |
+| `docker-compose.yml` (MySQL, Redis, Adminer, all services, gateway, web) | Binh | done |
 | `race_demo.py` + `docker-compose.demo.yml` (same account / same tuition races) | Binh | done |
 | Load tests (Locust, pytest races, invariant checker) + fixes they found, `docs/reports/LOAD_TEST_REPORT.md` | Duy | done |
 
 ## Run
-1. `Copy-Item .env.example .env` and fill in the passwords, `JWT_SECRET`, `OTP_EVENT_KEY` (command in
-   `.env.example`; `docker compose` refuses to run without it) and SMTP values
-   (leave `SMTP_USER` empty to print emails to the log).
-2. Whole system: `docker compose up -d --build` -> web http://localhost:8080, Adminer http://localhost:8081.
-3. Demo data (once): `docker compose --profile tools run --rm seed` -> users `alice` / `bob` / `carol`
-   (password `Password123!`) and 25 unpaid tuitions. Safe to run again (existing rows are skipped); paid tuitions
-   stay paid, so start from scratch with `docker compose down -v` (deletes all data), then steps 2-3.
-4. Public link (ngrok): `docker compose --profile public up -d`.
-5. Race demo: `docker compose -f docker-compose.yml -f docker-compose.demo.yml --profile demo run --rm race-demo all`
-   (the demo override enables the OTP test echo; never use it on a real deployment).
-6. `docker compose down`
+First run (needs Docker Desktop and Python):
 
-Frontend alone: `cd frontend; npm install; npm run dev` (serves :5173, proxies `/api` to the gateway on :8080).
+1. Create your settings file:
+   ```powershell
+   Copy-Item .env.example .env
+   ```
+2. Generate a key, then paste it into `.env` as `OTP_EVENT_KEY=<key>`:
+   ```powershell
+   python -c "import base64, os; print(base64.urlsafe_b64encode(os.urandom(32)).decode())"
+   ```
+3. Start everything:
+   ```powershell
+   docker compose up -d --build
+   ```
+4. Load the demo data (first run only):
+   ```powershell
+   docker compose --profile tools run --rm seed
+   ```
+5. Open http://localhost:8080 and log in as `alice` / `Password123!`. To try a payment, use student `52100001`.
 
+Emails go to the log until you add SMTP values to `.env`. To read the OTP code:
+```powershell
+docker compose logs notification-service
+```
+
+Stop with `docker compose down`. To start over with empty data, run `docker compose down -v`, then steps 3-4.
+
+Other: Adminer is at http://localhost:8081. Race demo:
+`docker compose -f docker-compose.yml -f docker-compose.demo.yml --profile demo run --rm race-demo all`
+(enables the OTP test echo; never use it on a real deployment). Frontend alone:
+`cd frontend; npm install; npm run dev` (serves :5173, proxies `/api` to the gateway on :8080).
+
+## Tests
 Tests (from each service folder, with `pip install -r backend/requirements.txt pytest fakeredis email-validator`):
 `python -m pytest -q tests`. The otp-service and notification-service tests need a real Redis (db 15, flushed);
 run them inside the compose network with the command at the top of `test_otp_store.py` / `tests/conftest.py`.
@@ -83,4 +102,4 @@ Load and concurrency tests (`tests/load/`, results and analysis in `docs/reports
 stack in load-test mode, `docker compose -f docker-compose.yml -f docker-compose.loadtest.yml up -d --build`, then with
 the same two `-f` files and `--profile loadtest run --rm loadtest`: `python lt_data.py seed` (once), `pytest -v`
 (race tests) or `sh run_level.sh medium 150 10 3m` (one load level, writes `docs/reports/medium/`). Load-test mode
-exposes the OTPs and lifts the rate limits: never use it for a demo or the ngrok link.
+exposes the OTPs and lifts the rate limits: never use it for a demo.

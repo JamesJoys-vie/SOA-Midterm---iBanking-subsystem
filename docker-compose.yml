@@ -1,7 +1,6 @@
 name: ibanking-subsystem
 # Whole system: docker compose up -d --build   ->  web http://localhost:8080 , Adminer http://localhost:8081
 # Demo data (once):     docker compose --profile tools run --rm seed
-# Public link (ngrok):   docker compose --profile public up -d
 # Race demo:            docker compose -f docker-compose.yml -f docker-compose.demo.yml --profile demo run --rm race-demo all
 
 x-svc-health: &svc-health
@@ -157,19 +156,6 @@ services:
       - "${WEB_HOST_PORT:-8080}:80"
     depends_on:
       gateway: { condition: service_healthy }
-
-  ngrok:
-    # Optional public HTTPS link to the web app (only with --profile public)
-    image: ngrok/ngrok:latest
-    profiles: ["public"]
-    restart: unless-stopped
-    command: ["http", "--url=${NGROK_DOMAIN}", "web:80"]
-    environment:
-      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN}
-    ports:
-      - "127.0.0.1:4040:4040"  # ngrok inspector: http://localhost:4040
-    depends_on:
-      - web
 
   race-demo:
     # Binh: concurrency demo of section 5 (only with --profile demo, see docker-compose.demo.yml)
