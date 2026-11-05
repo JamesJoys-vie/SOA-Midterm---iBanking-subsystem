@@ -39,10 +39,23 @@ export const newIdempotencyKey = () =>
 // Plain-words reason for a transaction that ended without paying.
 export const failureText = (t) => {
   if (!t) return ''
-  if (t.failure_reason) return t.failure_reason
-  if (t.status === 'EXPIRED') return 'Verification code expired'
-  if (t.status === 'CANCELLED') return 'Payment was cancelled'
-  return 'The payment could not be completed'
+  if (t.status === 'EXPIRED') return 'The code was not entered in time'
+  if (t.status === 'CANCELLED') return 'You cancelled this payment'
+  return t.failure_reason || 'The payment could not be completed'
+}
+
+// "09/10/2026 14:32" -> "14:32" (History rows, where the day is already the group title).
+export const formatTime = (s) => formatDateTime(s).slice(-5)
+
+// Group title of a History row: TODAY, YESTERDAY or "8 OCT 2026".
+export const dayLabel = (s) => {
+  const d = parseUtc(s)
+  if (!d) return ''
+  const now = new Date()
+  const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1)
+  if (d.toDateString() === now.toDateString()) return 'TODAY'
+  if (d.toDateString() === yesterday.toDateString()) return 'YESTERDAY'
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }).toUpperCase()
 }
 
 export const ENDED_STATUSES = ['FAILED', 'EXPIRED', 'CANCELLED']

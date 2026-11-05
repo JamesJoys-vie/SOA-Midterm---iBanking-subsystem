@@ -1,149 +1,240 @@
-// The three cards of the /pay Details step (see the "Pay tuition" screen in docs/wireframes/wireframes.html).
-// PayerCard shows who pays, TuitionCard looks up what is paid, ConfirmCard owns the rule that enables Confirm.
-import { Alert, Button, Card, EyeToggle, Money, ReadOnlyField, Skeleton, Spinner, StatusBadge } from './ui.jsx'
+// The cards of the /pay Details step (see "Tuition payment" and "Reserved tuition" in docs/wireframes/modernization-proposal.html).
+// TuitionCard looks up what is paid, PayerCard shows who pays, SummaryCard owns the rule that enables Confirm.
+import { GraduationCap, Lock, Mail } from 'lucide-react'
+import { useAmountVisibility } from '../context/AmountVisibility.jsx'
+import { useSecondsLeft } from '../hooks/useTimers.js'
+import { formatClock, formatVnd } from '../utils/format.js'
+import { OTP_TTL } from './OtpModal.jsx'
+import { Alert, Button, ButtonLink, Card, EyeToggle, ExpiryBar, Money, Reason, Skeleton, Spinner, StatusBadge, TextField } from './ui.jsx'
 
-// Read-only payer details: name, phone, email (GET /users/me) and available balance (GET /accounts/me).
-// `profile` and `account` are the React Query results, so the card can show loading skeletons and errors.
-export function PayerCard({ profile, account }) {
-  // True until both requests have answered once; the four rows show skeletons meanwhile.
-  const loading = profile.isPending || account.isPending
+// A RESERVED tuition, by who holds it. The API does not say who: `mine` is my own active payment for this MSSV, if any.
+// `fetchedAt`: when my transaction list was loaded (otp_expires_in counts from then). `unknown`: that list is still loading.
+function HeldNotice({ mine, fetchedAt, unknown, onResume, onCancel, onCheckNow, checking, checked }) {
+  const deadline = mine?.status === 'PENDING_OTP' ? fetchedAt + (mine.otp_expires_in ?? 0) * 1000 : null
+  const left = useSecondsLeft(deadline)
+
+  if (unknown) return <div className="grid gap-2 border-t border-line-strong pt-3"><Skeleton /><Skeleton className="h-4 w-2/3" /></div>
+
+  const Text = ({ title, children }) => <div><b className="block text-sm font-semibold">{title}</b><span className="text-[13px] text-ink-2">{children}</span></div>
+  const box = 'grid gap-2.5 border-t border-line-strong pt-3'
+
+  if (mine?.status === 'PROCESSING') {
+    return (
+      <div className={box}>
+        <Text title="Your payment is being finished">The amount has left your balance and we are confirming it. This page updates by itself.</Text>
+        <ButtonLink to="/history" variant="secondary">View history</ButtonLink>
+      </div>
+    )
+  }
+  if (mine) {
+    return (
+      <div className={box}>
+        <Text title="You started this payment">
+          {left > 0
+            ? <>Code expires in <span className="tabular-nums">{formatClock(left)}</span>. Resume to enter the code, or cancel to release the tuition.</>
+            : 'Code expired. This payment is ending, and no money was taken.'}
+        </Text>
+        <ExpiryBar share={left / OTP_TTL} />
+        <div className="grid grid-cols-2 gap-2">
+          <Button variant="ghost" onClick={onCancel}>Cancel</Button>
+          <Button onClick={onResume} disabled={left === 0} data-resume>Resume</Button>
+        </div>
+      </div>
+    )
+  }
+  // Someone else: never named, and no release time is promised because a resend extends the hold.
   return (
-    <Card title="Payer information" hint="read-only">
-      {loading ? (
-        <div className="space-y-3">{[1, 2, 3, 4].map((i) => <Skeleton key={i} />)}</div>
-      ) : (
-        <>
-          <ReadOnlyField label="Full name">{profile.data?.full_name}</ReadOnlyField>
-          <ReadOnlyField label="Phone number">{profile.data?.phone}</ReadOnlyField>
-          <ReadOnlyField label="Email">{profile.data?.email}</ReadOnlyField>
-          <ReadOnlyField label="Available balance">
-            {account.data ? <span className="inline-flex items-center gap-1"><Money value={account.data.balance} /><EyeToggle className="-my-1 -mr-2" /></span> : '—'}
-          </ReadOnlyField>
-          {(profile.error || account.error) && <div className="mt-2"><Alert>{(profile.error || account.error).message}</Alert></div>}
-        </>
-      )}
-    </Card>
+    <div className={box}>
+      <Text title="Someone else is paying this tuition">You cannot pay it right now, and you have not been charged. If their payment does not finish, it becomes available again. This page updates by itself.</Text>
+      <Button variant="secondary" onClick={onCheckNow} loading={checking}>{checking ? 'Checking…' : 'Check now'}</Button>
+      {checked && <span className="text-xs text-muted">Still reserved. Checked just now.</span>}
+    </div>
   )
 }
 
 // MSSV input plus the looked-up tuition (GET /tuitions/{mssv}), with its errors shown inside this card.
 // `mssv` / `onMssvChange`: controlled input owned by the page. `lookupEnabled`: true when the typed MSSV is long
 // enough and the debounce has settled, so the result belongs to what is on screen. `tuition`: the React Query result.
-// `disabled`: locks the input while a payment is being created or is waiting for its OTP.
-export function TuitionCard({ mssv, onMssvChange, lookupEnabled, tuition, disabled }) {
+// `disabled`: locks the input while a payment is being created or is waiting for its OTP. `held`: props for HeldNotice.
+export function TuitionCard({ mssv, onMssvChange, lookupEnabled, tuition, disabled, held }) {
   // 404 from tuition-service = this MSSV has no tuition; shown as its own message, without a Retry button.
-  const notFound = tuition.error?.status === 404
+  const notFound = lookupEnabled && tuition.error?.status === 404
   // Lookup result for the MSSV currently typed; undefined while typing so stale data is never shown.
   const data = lookupEnabled ? tuition.data : undefined
   // First load for this MSSV (a background refetch keeps the old rows and only shows the spinner in the input).
   const loading = lookupEnabled && tuition.isFetching && !data
 
   return (
-    <Card title="Tuition details">
-      <label className="block space-y-1">
-        <span className="text-sm font-medium text-slate-700">Student ID (MSSV)</span>
-        <div className="relative">
-          <input
-            value={mssv}
-            // MSSVs have no spaces and are stored upper-case ("521H0081"), so normalise while typing.
-            onChange={(e) => onMssvChange(e.target.value.replace(/\s/g, '').toUpperCase())}
-            disabled={disabled}
-            maxLength={12}
-            autoCapitalize="characters"
-            autoComplete="off"
-            placeholder="e.g. 52100001 or 521H0081"
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 pr-9 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-50"
-          />
-          {lookupEnabled && tuition.isFetching && <Spinner className="absolute right-3 top-3 h-4 w-4 text-blue-600" />}
-        </div>
-        <span className="text-xs text-slate-500">Type the 8-character MSSV (digits, may include letters) — it looks up automatically.</span>
-      </label>
+    <Card className="grid gap-4 md:p-6">
+      <h2 className="text-lg font-semibold">Who are you paying for?</h2>
+      <TextField
+        label="Student ID (MSSV)"
+        value={mssv}
+        // MSSVs have no spaces and are stored upper-case ("521H0081"), so normalise while typing.
+        onChange={(e) => onMssvChange(e.target.value.replace(/\s/g, '').toUpperCase())}
+        disabled={disabled}
+        maxLength={12}
+        autoCapitalize="characters"
+        autoComplete="off"
+        placeholder="e.g. 52100001 or 521H0081"
+        help="8 characters, may include letters. We look it up as you type."
+        error={notFound ? `No tuition found for MSSV ${mssv}.` : undefined}
+        side={lookupEnabled && tuition.isFetching ? <span className="px-2 text-action"><Spinner /></span> : undefined}
+      />
 
-      <div className="mt-4 border-t border-slate-100 pt-3">
-        {loading ? (
-          <div className="space-y-3">{[1, 2, 3, 4].map((i) => <Skeleton key={i} />)}</div>
-        ) : (
-          <>
-            <ReadOnlyField label="Student name">{data?.student_name}</ReadOnlyField>
-            <ReadOnlyField label="Term">{data?.term}</ReadOnlyField>
-            <ReadOnlyField label="Status">{data ? <StatusBadge status={data.status} /> : null}</ReadOnlyField>
-            <ReadOnlyField label="Amount due">{data ? <Money value={data.amount} /> : null}</ReadOnlyField>
-          </>
+      {loading && <div className="grid gap-3 rounded-xl bg-subtle p-4"><Skeleton className="h-4 w-3/5 bg-line" /><Skeleton className="h-4 w-2/5 bg-line" /><Skeleton className="h-4 bg-line" /></div>}
+
+      {lookupEnabled && tuition.error && !notFound && (
+        <Alert action={<Button variant="secondary" onClick={() => tuition.refetch()}>Retry</Button>}>{tuition.error.message}</Alert>
+      )}
+
+      {data && (
+        <div className="grid gap-3 rounded-xl bg-subtle p-4">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-card text-ink-2"><GraduationCap className="h-5 w-5" aria-hidden="true" /></span>
+            <div className="min-w-0 flex-1">
+              <b className="block text-base font-semibold">{data.student_name}</b>
+              <small className="text-[13px] text-ink-2">MSSV {data.student_id} · Term {data.term}</small>
+            </div>
+            <StatusBadge status={held.mine ? held.mine.status : data.status} />
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line-strong pt-3">
+            <span className="text-sm text-ink-2">Amount due</span>
+            <Money value={data.amount} alwaysVisible className="text-[22px] font-bold" />
+          </div>
+          {data.status === 'RESERVED' && <HeldNotice {...held} />}
+        </div>
+      )}
+    </Card>
+  )
+}
+
+// Read-only payer details: name, phone, email (GET /users/me).
+export function PayerCard({ profile }) {
+  const Item = ({ label, children }) => (
+    <div>
+      <dt className="text-xs text-muted">{label}</dt>
+      <dd className="break-words text-sm font-medium">{children ?? '—'}</dd>
+    </div>
+  )
+  return (
+    <Card className="order-2 md:order-none">
+      <p className="mb-2.5 flex items-center gap-2 text-sm font-semibold"><Lock className="h-4 w-4" aria-hidden="true" />Paying from your account</p>
+      {profile.isPending
+        ? <Skeleton />
+        : (
+          <dl className="grid gap-x-10 gap-y-2 md:flex md:flex-wrap">
+            <Item label="Full name">{profile.data?.full_name}</Item>
+            <Item label="Phone number">{profile.data?.phone}</Item>
+            <Item label="Email">{profile.data?.email}</Item>
+          </dl>
         )}
-        {lookupEnabled && notFound && <div className="mt-3"><Alert>No tuition found for MSSV {mssv}.</Alert></div>}
-        {lookupEnabled && tuition.error && !notFound && (
-          <div className="mt-3"><Alert action={<Button variant="secondary" onClick={() => tuition.refetch()}>Retry</Button>}>{tuition.error.message}</Alert></div>
-        )}
-        {data?.status === 'PAID' && <div className="mt-3"><Alert kind="info">This tuition is already paid.</Alert></div>}
-        {data?.status === 'RESERVED' && (
-          <div className="mt-3"><Alert kind="warning">A payment for this tuition is in progress. If it is yours, resume it from Home.</Alert></div>
-        )}
-      </div>
+      {profile.error && <div className="mt-2"><Alert>{profile.error.message}</Alert></div>}
     </Card>
   )
 }
 
 // Why the Confirm button is disabled, checked in the order the user fixes things; null = enabled.
-// 'insufficient' is a code, not text: ConfirmCard renders it as an error with the missing amount.
-export function blockReason({ tuition, balance, agreed }) {
-  if (!tuition) return 'Enter an MSSV that has tuition to pay.'
+// `lookup`: idle | loading | notfound | error | ok. `mine` / `ownerUnknown`: who holds a RESERVED tuition.
+// `insufficient` is a code, not text: SummaryCard renders it with the missing amount.
+export function blockReason({ lookup, tuition, mine, ownerUnknown, balance, agreed }) {
+  if (lookup === 'notfound') return 'Check the MSSV and try again.'
+  if (lookup === 'loading') return 'Looking up this MSSV…'
+  if (lookup === 'error') return 'The lookup failed. Try it again.'
+  if (!tuition) return 'Enter an MSSV to find the tuition.'
   if (tuition.status === 'PAID') return 'This tuition is already paid.'
-  if (tuition.status !== 'UNPAID') return 'A payment for this tuition is already in progress.'
+  if (tuition.status !== 'UNPAID') {
+    if (ownerUnknown) return 'Checking this tuition…'
+    if (mine) return mine.status === 'PROCESSING' ? 'This payment is already being finished.' : 'You already started this payment. Resume or cancel it first.'
+    return 'Someone else is paying this tuition right now.'
+  }
   if (balance == null) return 'Loading your balance…'
   if (Number(balance) < Number(tuition.amount)) return 'insufficient'
   if (!agreed) return 'Accept the terms & conditions to continue.'
   return null
 }
 
-// Balance summary, terms checkbox, and the Clear / Confirm buttons. Confirm stays visible but disabled,
-// with the reason written just above it (never a popup).
+const TERMS = [
+  'The full tuition amount is paid in one transaction; partial payment is not possible.',
+  'The payment is confirmed with a one-time code sent to your email, valid for 5 minutes.',
+  'After it succeeds the payment cannot be reversed from this app.',
+]
+
+function TermsCheck({ agreed, onAgreedChange }) {
+  return (
+    <div className="grid gap-1">
+      <label className="flex min-h-11 cursor-pointer items-center gap-2.5 text-[13px]">
+        <input type="checkbox" checked={agreed} onChange={(e) => onAgreedChange(e.target.checked)} className="h-5 w-5 flex-none accent-action" />
+        <span>I agree to the <b className="font-semibold">terms &amp; conditions</b></span>
+      </label>
+      <details className="text-xs text-ink-2">
+        <summary className="min-h-6">Read the terms</summary>
+        <ul className="mt-1 grid list-disc gap-0.5 pl-4">{TERMS.map((t) => <li key={t}>{t}</li>)}</ul>
+      </details>
+    </div>
+  )
+}
+
+// The reason text, with the missing amount only when amounts are visible.
+function ReasonLine({ reason, shortfall }) {
+  const { visible } = useAmountVisibility()
+  if (reason === 'insufficient') return <Reason danger>{visible ? `You need ${formatVnd(shortfall)} more.` : 'Your balance is lower than this tuition.'}</Reason>
+  return <Reason>{reason}</Reason>
+}
+
+// Balance summary, terms and the Confirm / Clear buttons. Confirm stays visible but disabled, with the reason just above it.
 // `tuition`: the looked-up tuition or undefined. `balance`: the payer's balance (Decimal string) or undefined while loading.
-// `agreed` / `onAgreedChange`: the terms checkbox. `onClear`: resets the form. `onConfirm`: creates the transaction.
-// `submitting`: request in flight (spinner on Confirm). `submitError`: message from a failed POST /transactions.
-export function ConfirmCard({ tuition, balance, agreed, onAgreedChange, onClear, onConfirm, submitting, submitError }) {
+// `reason`: blockReason's answer. `alert`: message from a failed POST /transactions. `email`: masked address for the code.
+// `payable`: on phones the terms and Confirm then move to StickyConfirm.
+export function SummaryCard({ tuition, balance, reason, alert, email, agreed, onAgreedChange, onClear, onConfirm, submitting, payable }) {
+  const { visible } = useAmountVisibility()
   // Amount to pay; only a tuition that can actually be paid (UNPAID) feeds the summary.
   const amount = tuition?.status === 'UNPAID' ? Number(tuition.amount) : null
-  // Balance left after paying; negative means the balance is too low (shown in red).
+  // Balance left after paying; negative means the balance is too low.
   const after = balance != null && amount != null ? Number(balance) - amount : null
-  // Current reason Confirm is disabled, or null when it can be pressed.
-  const reason = blockReason({ tuition, balance, agreed })
 
   return (
-    <Card title="Confirm payment">
-      <div className="max-w-md">
-        <ReadOnlyField label="Available balance">{balance != null ? <Money value={balance} /> : null}</ReadOnlyField>
-        <ReadOnlyField label="Tuition amount">{amount != null ? <span>− <Money value={amount} /></span> : null}</ReadOnlyField>
-        <div className="mt-1 border-t border-slate-200 pt-1">
-          <ReadOnlyField label="Balance after payment">
-            {after != null ? <Money value={after} className={after < 0 ? 'text-red-600' : ''} /> : null}
-          </ReadOnlyField>
+    <section aria-label="Payment summary" className="grid gap-3.5 rounded-2xl border border-line bg-card p-4 md:sticky md:top-20 md:p-6">
+      <h2 className="text-lg font-semibold">Payment summary</h2>
+      <div className="grid gap-2.5 text-sm">
+        <div className="flex items-center justify-between gap-2.5">
+          <span className="inline-flex items-center text-ink-2">Available balance<EyeToggle className="h-8 w-8 text-ink-2 hover:bg-subtle" size="h-4 w-4" /></span>
+          {balance != null ? <Money value={balance} className="font-medium" /> : <span>—</span>}
+        </div>
+        <div className="flex items-center justify-between gap-2.5">
+          <span className="text-ink-2">Tuition</span>
+          {amount != null ? <span className="font-medium">− <Money value={amount} alwaysVisible /></span> : <span>—</span>}
+        </div>
+        <div className="flex items-center justify-between gap-2.5 border-t border-line pt-2.5 text-base font-bold">
+          <span>Balance after</span>
+          {after == null ? <span>—</span>
+            : after >= 0 ? <Money value={after} />
+            : <span className="tabular-nums text-bad">{visible ? `− ${formatVnd(-after)}` : 'Not enough'}</span>}
         </div>
       </div>
 
-      <label className="mt-4 flex items-start gap-2 text-sm text-slate-700">
-        <input type="checkbox" checked={agreed} onChange={(e) => onAgreedChange(e.target.checked)} className="mt-0.5 h-4 w-4 accent-blue-600" />
-        <span>I agree to the terms &amp; conditions</span>
-      </label>
-      <details className="ml-6 mt-1 text-xs text-slate-500">
-        <summary className="cursor-pointer select-none">Read the terms</summary>
-        <ul className="mt-1 list-disc space-y-0.5 pl-4">
-          <li>The full tuition amount is paid in one transaction; partial payment is not possible.</li>
-          <li>The payment is confirmed with a one-time code sent to your email, valid for 5 minutes.</li>
-          <li>After it succeeds the payment cannot be reversed from this app.</li>
-        </ul>
-      </details>
-
-      <div className="mt-4 space-y-3">
-        {submitError && <Alert>{submitError}</Alert>}
-        {!submitError && reason === 'insufficient' && (
-          <Alert>Insufficient balance. You need <Money value={-after} /> more.</Alert>
-        )}
-        {!submitError && reason && reason !== 'insufficient' && tuition && <p className="text-sm text-slate-500">{reason}</p>}
-        <div className="flex justify-end gap-2">
-          <Button variant="secondary" onClick={onClear} disabled={submitting}>Clear</Button>
-          <Button onClick={onConfirm} disabled={reason !== null} loading={submitting}>Confirm transaction</Button>
-        </div>
+      <div className={payable ? 'hidden md:grid md:gap-3.5' : 'grid gap-3.5'}>
+        <TermsCheck agreed={agreed} onAgreedChange={onAgreedChange} />
+        {alert && <Alert>{alert}</Alert>}
+        {reason
+          ? <ReasonLine reason={reason} shortfall={after != null ? -after : 0} />
+          : <p className="flex items-start gap-2 text-[13px] text-ink-2"><Mail className="mt-0.5 h-4 w-4 flex-none" aria-hidden="true" /><span>Next, we email a 6-digit code to {email || 'your email'}.</span></p>}
+        <Button className="w-full" onClick={onConfirm} disabled={reason !== null} loading={submitting}>Confirm and send code</Button>
       </div>
-    </Card>
+      <Button variant="ghost" className="w-full" onClick={onClear} disabled={submitting}>Clear form</Button>
+    </section>
+  )
+}
+
+// Phones only: terms and Confirm stay reachable at the bottom, and cover the tab bar while a tuition can be paid.
+export function StickyConfirm({ tuition, reason, agreed, onAgreedChange, onConfirm, submitting }) {
+  return (
+    <div className="no-print fixed inset-x-0 bottom-0 z-40 grid gap-1 border-t border-line bg-card px-4 pb-4 pt-2 md:hidden">
+      <TermsCheck agreed={agreed} onAgreedChange={onAgreedChange} />
+      {reason && <Reason>{reason}</Reason>}
+      <Button className="mt-1 w-full" onClick={onConfirm} disabled={reason !== null} loading={submitting}>
+        <span>Confirm · <Money value={tuition.amount} alwaysVisible /></span>
+      </Button>
+    </div>
   )
 }

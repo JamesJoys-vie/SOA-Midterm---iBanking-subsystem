@@ -1,12 +1,21 @@
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { Navigate, useNavigate } from 'react-router-dom'
+import { ShieldCheck } from 'lucide-react'
 import { login } from '../api/client.js'
 import { useAuth } from '../context/AuthContext.jsx'
-import { Alert, Button } from '../components/ui.jsx'
+import { LogoMark } from '../components/AppLayout.jsx'
+import { Alert, Button, TextField } from '../components/ui.jsx'
+
+const HOW_IT_WORKS = [
+  ['Find the student', 'Type the MSSV and we look it up'],
+  ['Check the amount', 'See your balance before and after'],
+  ['Confirm by email code', 'A 6-digit code keeps the payment yours'],
+]
+const DEMO_ACCOUNTS = ['alice', 'bob', 'carol']
 
 export default function LoginPage() {
-  const { register, handleSubmit, formState: { errors, isSubmitting }, setError } = useForm()
+  const { register, handleSubmit, setValue, setFocus, formState: { errors, isSubmitting }, setError } = useForm()
   const { token, signIn } = useAuth()
   const navigate = useNavigate()
   const [showPassword, setShowPassword] = useState(false)
@@ -26,39 +35,75 @@ export default function LoginPage() {
     }
   }
 
-  const input = 'w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100'
+  // Demo chip: fills the username and moves on to the password.
+  const pickDemo = (name) => {
+    setValue('username', name, { shouldValidate: true })
+    setFocus('password')
+  }
 
   return (
-    <main className="grid min-h-screen place-items-center bg-slate-50 px-4">
-      {/* method="post": a native submit (if the handler ever failed) would never put the password in the URL. */}
-      <form method="post" onSubmit={handleSubmit(onSubmit)} noValidate className="w-full max-w-sm space-y-4 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+    <main className="grid min-h-screen md:grid-cols-[44%_1fr]">
+      <aside className="hidden flex-col justify-between gap-8 bg-hero p-12 text-white md:flex">
+        <div className="flex items-center gap-2.5 text-[17px] font-bold"><LogoMark className="bg-white text-ink" />iBanking</div>
         <div>
-          <h1 className="text-2xl font-bold text-blue-700">iBanking</h1>
-          <p className="text-sm text-slate-500">Sign in to pay tuition</p>
+          <p className="mb-6 text-4xl font-bold leading-tight">Pay tuition in three short steps</p>
+          <ol className="grid gap-[18px]">
+            {HOW_IT_WORKS.map(([title, text], i) => (
+              <li key={title} className="flex gap-3.5">
+                <span className="flex h-8 w-8 flex-none items-center justify-center rounded-full border border-current text-[13px] font-semibold">{i + 1}</span>
+                <span>
+                  <b className="block text-[15px] font-semibold">{title}</b>
+                  <span className="text-[13px] text-white/80">{text}</span>
+                </span>
+              </li>
+            ))}
+          </ol>
         </div>
+        <p className="flex items-center gap-2 text-xs text-white/80"><ShieldCheck className="h-4 w-4" aria-hidden="true" />Your password and codes never appear in the address bar.</p>
+      </aside>
 
-        {errors.root && <Alert>{errors.root.message}</Alert>}
-
-        <label className="block space-y-1">
-          <span className="text-sm font-medium text-slate-700">Username</span>
-          <input className={input} autoComplete="username" autoFocus {...register('username', { required: true, validate: (v) => v.trim() !== '' })} />
-          {errors.username && <span className="text-xs text-red-600">Required</span>}
-        </label>
-
-        <label className="block space-y-1">
-          <span className="text-sm font-medium text-slate-700">Password</span>
-          <div className="relative">
-            <input className={`${input} pr-16`} type={showPassword ? 'text' : 'password'} autoComplete="current-password" {...register('password', { required: true })} />
-            <button type="button" onClick={() => setShowPassword((s) => !s)} className="absolute inset-y-0 right-2 px-2 text-xs text-slate-500 hover:text-slate-800">
-              {showPassword ? 'Hide' : 'Show'}
-            </button>
+      <div className="grid place-items-center px-4 py-8">
+        {/* method="post": a native submit (if the handler ever failed) would never put the password in the URL. */}
+        <form method="post" onSubmit={handleSubmit(onSubmit)} noValidate className="grid w-full max-w-[360px] gap-4">
+          <div className="flex items-center gap-2.5 text-[17px] font-bold md:hidden"><LogoMark />iBanking</div>
+          <div>
+            <h1 className="text-[26px] font-bold">Sign in</h1>
+            <p className="text-sm text-ink-2">Use your iBanking account</p>
           </div>
-          {errors.password && <span className="text-xs text-red-600">Required</span>}
-        </label>
 
-        <Button type="submit" loading={isSubmitting} className="w-full">{isSubmitting ? 'Signing in…' : 'Sign in'}</Button>
-        <p className="text-center text-xs text-slate-400">Demo accounts: alice · bob · carol</p>
-      </form>
+          {errors.root && <Alert>{errors.root.message}</Alert>}
+
+          <TextField
+            label="Username"
+            autoComplete="username"
+            autoFocus
+            error={errors.username && 'Required'}
+            {...register('username', { required: true, validate: (v) => v.trim() !== '' })}
+          />
+          <TextField
+            label="Password"
+            type={showPassword ? 'text' : 'password'}
+            autoComplete="current-password"
+            error={errors.password && 'Required'}
+            sidePadding="pr-16"
+            side={(
+              <button type="button" onClick={() => setShowPassword((s) => !s)} className="flex h-11 min-w-11 items-center justify-center px-1.5 text-xs font-medium text-ink-2 hover:text-ink">
+                {showPassword ? 'Hide' : 'Show'}
+              </button>
+            )}
+            {...register('password', { required: true })}
+          />
+
+          <Button type="submit" loading={isSubmitting} className="w-full">{isSubmitting ? 'Signing in…' : 'Sign in'}</Button>
+
+          <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted">
+            <span>Demo accounts:</span>
+            {DEMO_ACCOUNTS.map((name) => (
+              <button key={name} type="button" onClick={() => pickDemo(name)} className="min-h-7 rounded-full border border-line bg-card px-2.5 font-medium text-ink-2 hover:border-line-strong">{name}</button>
+            ))}
+          </div>
+        </form>
+      </div>
     </main>
   )
 }

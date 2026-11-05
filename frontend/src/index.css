@@ -1,1 +1,43 @@
 @import "tailwindcss";
+
+/* Design tokens (see docs/wireframes/modernization-proposal.html). Components use these names, never raw palette colors. */
+@theme {
+  --font-sans: "Be Vietnam Pro", system-ui, "Segoe UI", sans-serif;
+  --color-page: #F8FAFC;
+  --color-card: #FFFFFF;
+  --color-subtle: #F1F5F9;
+  --color-hero: #1E3A8A;
+  --color-ink: #0F172A;
+  --color-ink-2: #475569;
+  --color-muted: #64748B;
+  --color-line: #E2E8F0;
+  --color-line-strong: #7C8BA1;
+  --color-action: #2563EB;
+  --color-action-hover: #1D4ED8;
+  --color-ok: #047857;
+  --color-warn: #B45309;
+  --color-bad: #B91C1C;
+  --animate-rise: rise 0.16s ease-out;
+  --animate-fade: fade 0.14s ease-out;
+
+  @keyframes rise { from { transform: translateY(10px); } }
+  @keyframes fade { from { opacity: 0; } }
+}
+
+@layer base {
+  body { background: var(--color-page); color: var(--color-ink); }
+  button:not(:disabled), summary, label[for] { cursor: pointer; }
+  :focus-visible { outline: 2px solid var(--color-action); outline-offset: 2px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}
+
+/* "Print receipt" on the Result card prints only the receipt. */
+@media print {
+  body * { visibility: hidden; }
+  .receipt, .receipt * { visibility: visible; }
+  .receipt { position: absolute; left: 0; top: 0; width: 100%; max-width: none; border: 0; }
+  .no-print { display: none !important; }
+}

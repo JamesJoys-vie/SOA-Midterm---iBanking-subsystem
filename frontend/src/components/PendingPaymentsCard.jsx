@@ -1,12 +1,17 @@
-// Home's "Waiting for OTP" card: pending payments with countdown, Resume and Cancel. Hidden when empty.
-import { useState } from 'react'
+// Home's pending payments: one call to action per payment, with an expiry bar, Resume and Cancel. Hidden when there are none.
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { cancelTransaction } from '../api/client.js'
+import { useQueryClient } from '@tanstack/react-query'
+import { Clock3 } from 'lucide-react'
 import { keys } from '../hooks/queries.js'
 import { useSecondsLeft } from '../hooks/useTimers.js'
-import { formatClock, formatDateTime } from '../utils/format.js'
-import { Alert, Button, Card, Money } from './ui.jsx'
+import { formatClock } from '../utils/format.js'
+import CancelPaymentDialog from './CancelPaymentDialog.jsx'
+import { OTP_TTL } from './OtpModal.jsx'
+import { Button, ExpiryBar, Money } from './ui.jsx'
+
+// Seconds between re-reads once a code ran out, until the expiry job has ended the payment.
+const EXPIRY_RECHECK_MS = 5000
 
 // One pending payment. fetchedAt: when the list was loaded (otp_expires_in counts from then).
 function PendingRow({ txn, fetchedAt }) {
@@ -16,38 +21,38 @@ function PendingRow({ txn, fetchedAt }) {
   const [deadline] = useState(() => fetchedAt + (txn.otp_expires_in ?? 0) * 1000)
   // Seconds left; 0 disables Resume.
   const left = useSecondsLeft(deadline)
-  // Cancels the payment, then reloads the list and balance.
-  const cancel = useMutation({
-    mutationFn: () => cancelTransaction(txn.id),
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: keys.transactions })
-      queryClient.invalidateQueries({ queryKey: keys.account })
-    },
-  })
+  // The cancel question is open.
+  const [asking, setAsking] = useState(false)
 
-  // Asks before cancelling.
-  const onCancel = () => {
-    if (window.confirm(`Cancel the payment for MSSV ${txn.student_id}?`)) cancel.mutate()
-  }
+  // Timer over: keep re-reading so the card turns into a Cancelled row without a page reload.
+  useEffect(() => {
+    if (left > 0) return undefined
+    const id = setTimeout(() => {
+      queryClient.invalidateQueries({ queryKey: keys.transactions })
+      queryClient.invalidateQueries({ queryKey: ['tuition'] })
+    }, EXPIRY_RECHECK_MS)
+    return () => clearTimeout(id)
+  }, [left, queryClient])
 
   // Reopens the OTP modal on /pay; the id goes in router state, not the URL.
   const onResume = () => navigate('/pay', { state: { resumeId: txn.id } })
 
   return (
-    <li className="flex flex-wrap items-center justify-between gap-3 py-3">
-      <div>
-        <p className="font-medium text-slate-800">{txn.student_id}</p>
-        <p className="text-xs text-slate-500">
-          Started {formatDateTime(txn.created_at).slice(-5)} · {left > 0 ? `expires in ${formatClock(left)}` : 'expired'}
-        </p>
-        {cancel.error && <p className="mt-1 text-xs text-red-600">{cancel.error.message}</p>}
+    <section aria-label="Payment waiting for code" className="flex flex-wrap items-center gap-x-4 gap-y-2.5 rounded-2xl border-2 border-warn bg-card p-3.5 md:flex-nowrap md:px-5 md:py-4">
+      <span className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-subtle text-warn"><Clock3 className="h-5 w-5" aria-hidden="true" /></span>
+      <div className="grid min-w-0 flex-[1_1_calc(100%-56px)] gap-1.5 md:flex-1">
+        <b className="text-sm font-semibold">Finish your payment: MSSV {txn.student_id} · <Money value={txn.amount} /></b>
+        <small className="text-[13px] text-ink-2">
+          {left > 0 ? <>Code expires in <span className="tabular-nums">{formatClock(left)}</span>. Lost the email? Resume and press Resend.</> : 'Code expired. This payment is ending, and no money was taken.'}
+        </small>
+        <ExpiryBar share={left / OTP_TTL} />
       </div>
-      <div className="flex items-center gap-3">
-        <Money value={txn.amount} className="font-medium" />
-        <Button variant="secondary" onClick={onCancel} loading={cancel.isPending}>Cancel</Button>
+      <div className="grid w-full grid-cols-2 gap-2 md:flex md:w-auto">
+        <Button variant="ghost" onClick={() => setAsking(true)}>Cancel</Button>
         <Button onClick={onResume} disabled={left === 0}>Resume</Button>
       </div>
-    </li>
+      {asking && <CancelPaymentDialog txn={txn} onClose={() => setAsking(false)} />}
+    </section>
   )
 }
 
@@ -55,13 +60,5 @@ function PendingRow({ txn, fetchedAt }) {
 export default function PendingPaymentsCard({ transactions, fetchedAt }) {
   // Payments still waiting for their code.
   const pending = (transactions || []).filter((t) => t.status === 'PENDING_OTP')
-  if (pending.length === 0) return null
-  return (
-    <Card title={`Waiting for OTP · ${pending.length}`} hint="Finish or cancel before it expires" className="border-amber-300">
-      <Alert kind="warning">Lost the email? Resume and press “Resend code”.</Alert>
-      <ul className="divide-y divide-slate-100">
-        {pending.map((t) => <PendingRow key={t.id} txn={t} fetchedAt={fetchedAt} />)}
-      </ul>
-    </Card>
-  )
+  return pending.map((t) => <PendingRow key={t.id} txn={t} fetchedAt={fetchedAt} />)
 }
