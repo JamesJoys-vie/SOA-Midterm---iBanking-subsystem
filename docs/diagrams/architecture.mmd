@@ -2,7 +2,6 @@ flowchart LR
   %% Solid arrows: synchronous REST/HTTP calls. Dashed arrows: asynchronous events on Redis Streams.
   %% Service responsibilities and the full call list: docs/design/services.md
   User([Payer's browser]) -->|HTTPS| WEB
-  NG[Ngrok tunnel - optional, profile public] -.-> WEB
   WEB[web: nginx + React SPA] -->|"/api/*"| GW
 
   subgraph EDGE [Edge]

@@ -24,8 +24,9 @@ Who owns which data and who calls whom: [docs/design/services.md](docs/design/se
 ## OTP and email
 - payment-service asks otp-service for a code; otp-service keeps only a SHA-256 of it in Redis (5 min TTL, single use,
   burned after 5 wrong codes, 30 s between codes, max 4 per payment) and publishes `otp.requested`.
-- The code inside that event is encrypted (`otp_enc`, key `OTP_EVENT_KEY`, given to otp-service and
-  notification-service only), so the stream, Redis' AOF file and dead letters never hold the plain code.
+- The code inside that event is encrypted (`otp_enc`, key `OTP_EVENT_KEY`, generated on first start by `otp-key-init`
+  and mounted into otp-service and notification-service only), so the stream, Redis' AOF file and dead letters never
+  hold the plain code.
 - notification-service reads `otp.requested` and `payment.completed` (consumer group `notification`) and sends the
   OTP and receipt emails. Delivery is at-least-once with no duplicate email; a failed send is retried every 15 s;
   after 5 tries, or at once when retrying cannot help (bad payload, address refused), the event moves to
@@ -56,25 +57,36 @@ React 18 + Vite + Tailwind, TanStack Query; screens follow `docs/wireframes/wire
 | `seed.py` (demo data) | Hieu | done |
 | `gateway` (JWT guard, rate limiter, reverse proxy) + tests | Binh | done |
 | `payment_service` (saga, idempotency, outbox relay, expiry job, Alembic migration) + tests | Binh | done |
-| `docker-compose.yml` (MySQL, Redis, Adminer, all services, gateway, web, ngrok profile) | Binh | done |
+| `docker-compose.yml` (MySQL, Redis, Adminer, all services, gateway, web) | Binh | done |
 | `race_demo.py` + `docker-compose.demo.yml` (same account / same tuition races) | Binh | done |
 | Load tests (Locust, pytest races, invariant checker) + fixes they found, `docs/reports/LOAD_TEST_REPORT.md` | Duy | done |
 
 ## Run
-1. `Copy-Item .env.example .env` and fill in the passwords, `JWT_SECRET`, `OTP_EVENT_KEY` (command in
-   `.env.example`; otp-service and notification-service do not start without it) and SMTP values
-   (leave `SMTP_USER` empty to print emails to the log).
-2. Whole system: `docker compose up -d --build` -> web http://localhost:8080, Adminer http://localhost:8081.
-3. Demo data (once): `docker compose --profile tools run --rm seed` -> users `alice` / `bob` / `carol`
-   (password `Password123!`) and 25 unpaid tuitions. Safe to run again (existing rows are skipped); paid tuitions
-   stay paid, so start from scratch with `docker compose down -v` (deletes all data), then steps 2-3.
-4. Public link (ngrok): `docker compose --profile public up -d`.
-5. Race demo: `docker compose -f docker-compose.yml -f docker-compose.demo.yml --profile demo run --rm race-demo all`
-   (the demo override enables the OTP test echo; never use it on a real deployment).
-6. `docker compose down`
+First run (needs Docker Desktop):
 
-Frontend alone: `cd frontend; npm install; npm run dev` (serves :5173, proxies `/api` to the gateway on :8080).
+1. Create your settings file:
+   ```powershell
+   Copy-Item .env.example .env
+   ```
+2. Start everything, including the demo data:
+   ```powershell
+   docker compose up -d --build
+   ```
+3. Open http://localhost:8080 and log in as `alice` / `Password123!`. To try a payment, use student `52100001`.
 
+Emails go to the log until you add SMTP values to `.env`. To read the OTP code:
+```powershell
+docker compose logs notification-service
+```
+
+Stop with `docker compose down`. To start over with empty data, run `docker compose down -v`, then step 2.
+
+Other: Adminer is at http://localhost:8081. Race demo:
+`docker compose -f docker-compose.yml -f docker-compose.demo.yml --profile demo run --rm race-demo all`
+(enables the OTP test echo; never use it on a real deployment). Frontend alone:
+`cd frontend; npm install; npm run dev` (serves :5173, proxies `/api` to the gateway on :8080).
+
+## Tests
 Tests (from each service folder, with `pip install -r backend/requirements.txt pytest fakeredis email-validator`):
 `python -m pytest -q tests`. The otp-service and notification-service tests need a real Redis (db 15, flushed);
 run them inside the compose network with the command at the top of `test_otp_store.py` / `tests/conftest.py`.
@@ -83,4 +95,4 @@ Load and concurrency tests (`tests/load/`, results and analysis in `docs/reports
 stack in load-test mode, `docker compose -f docker-compose.yml -f docker-compose.loadtest.yml up -d --build`, then with
 the same two `-f` files and `--profile loadtest run --rm loadtest`: `python lt_data.py seed` (once), `pytest -v`
 (race tests) or `sh run_level.sh medium 150 10 3m` (one load level, writes `docs/reports/medium/`). Load-test mode
-exposes the OTPs and lifts the rate limits: never use it for a demo or the ngrok link.
+exposes the OTPs and lifts the rate limits: never use it for a demo.

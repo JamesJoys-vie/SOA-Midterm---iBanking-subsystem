@@ -4,7 +4,7 @@ on the shared Redis sees an opaque token.
 
 Fernet = AES-128-CBC + HMAC-SHA256 with a timestamp. The token carries {otp, transaction_id}: decrypting checks the
 transaction id, so a token copied into another transaction's event is rejected.
-Generate a key:  python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+The key is generated on first start by `otp-key-init` (docker-compose.yml).
 """
 import json
 import time

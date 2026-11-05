@@ -98,4 +98,4 @@ docker compose -f docker-compose.yml -f docker-compose.loadtest.yml --profile lo
 docker compose -f docker-compose.yml -f docker-compose.loadtest.yml --profile loadtest run --rm loadtest sh run_level.sh medium 150 10 3m
 ```
 `RACE_ROUNDS=20` (`-e`) repeats each race test more often. The Locust web UI: `... run --rm --service-ports loadtest
-locust -f locustfile.py` -> http://localhost:8089. Do not use load-test mode for a demo or the public ngrok link.
+locust -f locustfile.py` -> http://localhost:8089. Do not use load-test mode for a demo.

@@ -1,7 +1,5 @@
-name: tuition-payment
-# Whole system: docker compose up -d --build   ->  web http://localhost:8080 , Adminer http://localhost:8081
-# Demo data (once):     docker compose --profile tools run --rm seed
-# Public link (ngrok):   docker compose --profile public up -d
+name: ibanking-subsystem
+# Whole system + demo data: docker compose up -d --build   ->  web http://localhost:8080 , Adminer http://localhost:8081
 # Race demo:            docker compose -f docker-compose.yml -f docker-compose.demo.yml --profile demo run --rm race-demo all
 
 x-svc-health: &svc-health
@@ -60,6 +58,21 @@ services:
     depends_on:
       mysql: { condition: service_healthy }
 
+  otp-key-init:
+    # One-shot: creates the OTP_EVENT_KEY file on first run, keeps it afterwards (removed by docker compose down -v)
+    image: python:3.12-slim
+    command:
+      - python
+      - -c
+      - |
+        import base64, os, pathlib
+        f = pathlib.Path("/run/secrets/otp_event_key")
+        if not f.exists():
+            f.write_text(base64.urlsafe_b64encode(os.urandom(32)).decode())
+            f.chmod(0o400)
+    volumes:
+      - otp_key:/run/secrets
+
   # ---------------- microservices ----------------
   user-service:
     # Hieu's service, built with the shared backend/Dockerfile
@@ -110,9 +123,11 @@ services:
     environment:
       REDIS_URL: redis://redis:6379/0
       OTP_TTL_SECONDS: ${OTP_TTL_SECONDS:-300}
-      OTP_EVENT_KEY: ${OTP_EVENT_KEY}  # encrypts the code in otp.requested; shared with notification-service only
+    volumes:
+      - otp_key:/run/secrets:ro  # encrypts the code in otp.requested; shared with notification-service only
     depends_on:
       redis: { condition: service_healthy }
+      otp-key-init: { condition: service_completed_successfully }
     healthcheck: *svc-health
 
   notification-service:
@@ -120,14 +135,16 @@ services:
     restart: unless-stopped
     environment:
       REDIS_URL: redis://redis:6379/0
-      OTP_EVENT_KEY: ${OTP_EVENT_KEY}  # decrypts the code in otp.requested
       SMTP_HOST: ${SMTP_HOST}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER}
       SMTP_PASSWORD: ${SMTP_PASSWORD}
       SMTP_FROM: ${SMTP_FROM}
+    volumes:
+      - otp_key:/run/secrets:ro  # decrypts the code in otp.requested
     depends_on:
       redis: { condition: service_healthy }
+      otp-key-init: { condition: service_completed_successfully }
     healthcheck: *svc-health
 
   # ---------------- edge ----------------
@@ -157,19 +174,7 @@ services:
       - "${WEB_HOST_PORT:-8080}:80"
     depends_on:
       gateway: { condition: service_healthy }
-
-  ngrok:
-    # Optional public HTTPS link to the web app (only with --profile public)
-    image: ngrok/ngrok:latest
-    profiles: ["public"]
-    restart: unless-stopped
-    command: ["http", "--url=${NGROK_DOMAIN}", "web:80"]
-    environment:
-      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN}
-    ports:
-      - "127.0.0.1:4040:4040"  # ngrok inspector: http://localhost:4040
-    depends_on:
-      - web
+      seed: { condition: service_completed_successfully }
 
   race-demo:
     # Binh: concurrency demo of section 5 (only with --profile demo, see docker-compose.demo.yml)
@@ -183,10 +188,9 @@ services:
       gateway: { condition: service_healthy }
 
   seed:
-    # Hieu: demo users and tuitions (only with --profile tools). Skips existing rows; reset with: docker compose down -v
+    # Hieu: one-shot, demo users and tuitions on every up. Skips existing rows; reset with: docker compose down -v
     # SERVICE_DIR "." = whole backend, since seed.py imports the user / tuition service models.
     build: { context: ./backend, args: { SERVICE_DIR: . } }
-    profiles: ["tools"]
     entrypoint: ["python", "scripts/seed.py"]
     environment:
       # Each DB with its own service's MySQL user
@@ -200,3 +204,4 @@ services:
 volumes:
   mysql_data:
   redis_data:
+  otp_key:
