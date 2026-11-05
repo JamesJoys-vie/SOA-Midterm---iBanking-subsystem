@@ -1,8 +1,8 @@
 """Seed demo data into the microservice databases (idempotent: skips existing records).
 
 Usage:
-  # Via Docker Compose:
-  docker compose --profile tools run --rm seed
+  # Via Docker Compose (also runs on every docker compose up):
+  docker compose run --rm seed
 
   # Or locally against SQLite / local MySQL:
   USERS_DB_URL="sqlite:///./user.db" TUITION_DB_URL="sqlite:///./tuition.db" python backend/scripts/seed.py

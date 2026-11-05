@@ -1,6 +1,5 @@
 name: ibanking-subsystem
-# Whole system: docker compose up -d --build   ->  web http://localhost:8080 , Adminer http://localhost:8081
-# Demo data (once):     docker compose --profile tools run --rm seed
+# Whole system + demo data: docker compose up -d --build   ->  web http://localhost:8080 , Adminer http://localhost:8081
 # Race demo:            docker compose -f docker-compose.yml -f docker-compose.demo.yml --profile demo run --rm race-demo all
 
 x-svc-health: &svc-health
@@ -175,6 +174,7 @@ services:
       - "${WEB_HOST_PORT:-8080}:80"
     depends_on:
       gateway: { condition: service_healthy }
+      seed: { condition: service_completed_successfully }
 
   race-demo:
     # Binh: concurrency demo of section 5 (only with --profile demo, see docker-compose.demo.yml)
@@ -188,10 +188,9 @@ services:
       gateway: { condition: service_healthy }
 
   seed:
-    # Hieu: demo users and tuitions (only with --profile tools). Skips existing rows; reset with: docker compose down -v
+    # Hieu: one-shot, demo users and tuitions on every up. Skips existing rows; reset with: docker compose down -v
     # SERVICE_DIR "." = whole backend, since seed.py imports the user / tuition service models.
     build: { context: ./backend, args: { SERVICE_DIR: . } }
-    profiles: ["tools"]
     entrypoint: ["python", "scripts/seed.py"]
     environment:
       # Each DB with its own service's MySQL user

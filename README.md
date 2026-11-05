@@ -68,22 +68,18 @@ First run (needs Docker Desktop):
    ```powershell
    Copy-Item .env.example .env
    ```
-2. Start everything:
+2. Start everything, including the demo data:
    ```powershell
    docker compose up -d --build
    ```
-3. Load the demo data (first run only):
-   ```powershell
-   docker compose --profile tools run --rm seed
-   ```
-4. Open http://localhost:8080 and log in as `alice` / `Password123!`. To try a payment, use student `52100001`.
+3. Open http://localhost:8080 and log in as `alice` / `Password123!`. To try a payment, use student `52100001`.
 
 Emails go to the log until you add SMTP values to `.env`. To read the OTP code:
 ```powershell
 docker compose logs notification-service
 ```
 
-Stop with `docker compose down`. To start over with empty data, run `docker compose down -v`, then steps 2-3.
+Stop with `docker compose down`. To start over with empty data, run `docker compose down -v`, then step 2.
 
 Other: Adminer is at http://localhost:8081. Race demo:
 `docker compose -f docker-compose.yml -f docker-compose.demo.yml --profile demo run --rm race-demo all`
