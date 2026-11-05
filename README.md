@@ -24,8 +24,9 @@ Who owns which data and who calls whom: [docs/design/services.md](docs/design/se
 ## OTP and email
 - payment-service asks otp-service for a code; otp-service keeps only a SHA-256 of it in Redis (5 min TTL, single use,
   burned after 5 wrong codes, 30 s between codes, max 4 per payment) and publishes `otp.requested`.
-- The code inside that event is encrypted (`otp_enc`, key `OTP_EVENT_KEY`, given to otp-service and
-  notification-service only), so the stream, Redis' AOF file and dead letters never hold the plain code.
+- The code inside that event is encrypted (`otp_enc`, key `OTP_EVENT_KEY`, generated on first start by `otp-key-init`
+  and mounted into otp-service and notification-service only), so the stream, Redis' AOF file and dead letters never
+  hold the plain code.
 - notification-service reads `otp.requested` and `payment.completed` (consumer group `notification`) and sends the
   OTP and receipt emails. Delivery is at-least-once with no duplicate email; a failed send is retried every 15 s;
   after 5 tries, or at once when retrying cannot help (bad payload, address refused), the event moves to
@@ -61,32 +62,28 @@ React 18 + Vite + Tailwind, TanStack Query; screens follow `docs/wireframes/wire
 | Load tests (Locust, pytest races, invariant checker) + fixes they found, `docs/reports/LOAD_TEST_REPORT.md` | Duy | done |
 
 ## Run
-First run (needs Docker Desktop and Python):
+First run (needs Docker Desktop):
 
 1. Create your settings file:
    ```powershell
    Copy-Item .env.example .env
    ```
-2. Generate a key, then paste it into `.env` as `OTP_EVENT_KEY=<key>`:
-   ```powershell
-   python -c "import base64, os; print(base64.urlsafe_b64encode(os.urandom(32)).decode())"
-   ```
-3. Start everything:
+2. Start everything:
    ```powershell
    docker compose up -d --build
    ```
-4. Load the demo data (first run only):
+3. Load the demo data (first run only):
    ```powershell
    docker compose --profile tools run --rm seed
    ```
-5. Open http://localhost:8080 and log in as `alice` / `Password123!`. To try a payment, use student `52100001`.
+4. Open http://localhost:8080 and log in as `alice` / `Password123!`. To try a payment, use student `52100001`.
 
 Emails go to the log until you add SMTP values to `.env`. To read the OTP code:
 ```powershell
 docker compose logs notification-service
 ```
 
-Stop with `docker compose down`. To start over with empty data, run `docker compose down -v`, then steps 3-4.
+Stop with `docker compose down`. To start over with empty data, run `docker compose down -v`, then steps 2-3.
 
 Other: Adminer is at http://localhost:8081. Race demo:
 `docker compose -f docker-compose.yml -f docker-compose.demo.yml --profile demo run --rm race-demo all`

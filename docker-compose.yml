@@ -59,6 +59,21 @@ services:
     depends_on:
       mysql: { condition: service_healthy }
 
+  otp-key-init:
+    # One-shot: creates the OTP_EVENT_KEY file on first run, keeps it afterwards (removed by docker compose down -v)
+    image: python:3.12-slim
+    command:
+      - python
+      - -c
+      - |
+        import base64, os, pathlib
+        f = pathlib.Path("/run/secrets/otp_event_key")
+        if not f.exists():
+            f.write_text(base64.urlsafe_b64encode(os.urandom(32)).decode())
+            f.chmod(0o400)
+    volumes:
+      - otp_key:/run/secrets
+
   # ---------------- microservices ----------------
   user-service:
     # Hieu's service, built with the shared backend/Dockerfile
@@ -109,9 +124,11 @@ services:
     environment:
       REDIS_URL: redis://redis:6379/0
       OTP_TTL_SECONDS: ${OTP_TTL_SECONDS:-300}
-      OTP_EVENT_KEY: ${OTP_EVENT_KEY:?Set OTP_EVENT_KEY in .env, see .env.example}  # encrypts the code in otp.requested; shared with notification-service only
+    volumes:
+      - otp_key:/run/secrets:ro  # encrypts the code in otp.requested; shared with notification-service only
     depends_on:
       redis: { condition: service_healthy }
+      otp-key-init: { condition: service_completed_successfully }
     healthcheck: *svc-health
 
   notification-service:
@@ -119,14 +136,16 @@ services:
     restart: unless-stopped
     environment:
       REDIS_URL: redis://redis:6379/0
-      OTP_EVENT_KEY: ${OTP_EVENT_KEY:?Set OTP_EVENT_KEY in .env, see .env.example}  # decrypts the code in otp.requested
       SMTP_HOST: ${SMTP_HOST}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER}
       SMTP_PASSWORD: ${SMTP_PASSWORD}
       SMTP_FROM: ${SMTP_FROM}
+    volumes:
+      - otp_key:/run/secrets:ro  # decrypts the code in otp.requested
     depends_on:
       redis: { condition: service_healthy }
+      otp-key-init: { condition: service_completed_successfully }
     healthcheck: *svc-health
 
   # ---------------- edge ----------------
@@ -186,3 +205,4 @@ services:
 volumes:
   mysql_data:
   redis_data:
+  otp_key:
