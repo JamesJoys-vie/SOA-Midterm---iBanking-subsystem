@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-theme="pine">
+<html lang="en" data-theme="blue">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -411,8 +411,8 @@
   </span>
   <label class="ctl">Theme
     <select class="pick" id="theme">
-      <option value="pine">Deep pine (proposed)</option>
-      <option value="blue">Blue (current hue)</option>
+      <option value="blue">Blue (adopted)</option>
+      <option value="pine">Deep pine</option>
       <option value="dark">Pine dark (later)</option>
     </select>
   </label>
@@ -472,7 +472,7 @@
 
   <section class="sect">
     <h2>Implementation plan</h2>
-    <p>Four phases on the existing React and Tailwind stack, each one reviewable on its own branch.</p>
+    <p>Phases 1 to 3 are built in <code>frontend/</code>. Phase 4 is built only for the printable receipt.</p>
     <div class="plan">
       <div class="phase"><span class="n">Phase 1</span><h3>Foundations</h3><p>Tailwind <code>@theme</code> tokens, Be Vietnam Pro, <code>lucide-react</code> icons, shared Input and Dialog, and status labels. The layout stays as it is.</p></div>
       <div class="phase"><span class="n">Phase 2</span><h3>UX and accessibility fixes</h3><p>In-app cancel dialog, focus trap and Esc, visible failure reason, idle reason on Confirm, and <code>aria-invalid</code> on fields. Worth doing even without the redesign.</p></div>
@@ -486,7 +486,7 @@
     <p>This page became the UI spec on 2026-11-05. The controls at the top remain for comparison only.</p>
     <div class="decide">
       <div class="decision"><b>Tuition stays visible when amounts are hidden</b><span>Adopted. Your balance stays masked, but you can see what you are paying. This replaces the rule in the old wireframes.</span></div>
-      <div class="decision"><b>Deep pine</b><span>Adopted. Every theme uses the same tokens, so this stays a small change later.</span></div>
+      <div class="decision"><b>Blue</b><span>Adopted, and built into <code>frontend/src/index.css</code>. Every theme uses the same tokens, so this stays a small change later.</span></div>
       <div class="decision"><b>A payment that times out shows as Cancelled</b><span>Adopted. It is stored as EXPIRED, but students see Cancelled, with "The code was not entered in time" as the reason.</span></div>
       <div class="decision"><b>Still open: Vietnamese, English or both?</b><span>Not prototyped here. Cheaper to decide before Phase 3, because text lengths affect the layouts.</span></div>
     </div>
