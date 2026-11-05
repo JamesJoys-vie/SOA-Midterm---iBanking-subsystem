@@ -1,4 +1,4 @@
-name: tuition-payment
+name: ibanking-subsystem
 # Whole system: docker compose up -d --build   ->  web http://localhost:8080 , Adminer http://localhost:8081
 # Demo data (once):     docker compose --profile tools run --rm seed
 # Public link (ngrok):   docker compose --profile public up -d
@@ -110,7 +110,7 @@ services:
     environment:
       REDIS_URL: redis://redis:6379/0
       OTP_TTL_SECONDS: ${OTP_TTL_SECONDS:-300}
-      OTP_EVENT_KEY: ${OTP_EVENT_KEY}  # encrypts the code in otp.requested; shared with notification-service only
+      OTP_EVENT_KEY: ${OTP_EVENT_KEY:?Set OTP_EVENT_KEY in .env, see .env.example}  # encrypts the code in otp.requested; shared with notification-service only
     depends_on:
       redis: { condition: service_healthy }
     healthcheck: *svc-health
@@ -120,7 +120,7 @@ services:
     restart: unless-stopped
     environment:
       REDIS_URL: redis://redis:6379/0
-      OTP_EVENT_KEY: ${OTP_EVENT_KEY}  # decrypts the code in otp.requested
+      OTP_EVENT_KEY: ${OTP_EVENT_KEY:?Set OTP_EVENT_KEY in .env, see .env.example}  # decrypts the code in otp.requested
       SMTP_HOST: ${SMTP_HOST}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER}

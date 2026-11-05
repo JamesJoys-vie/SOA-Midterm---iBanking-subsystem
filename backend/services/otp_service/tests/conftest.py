@@ -3,4 +3,4 @@ import os
 from cryptography.fernet import Fernet
 
 os.environ.setdefault("REDIS_URL", "redis://localhost:6379/15")
-os.environ.setdefault("OTP_EVENT_KEY", Fernet.generate_key().decode())
+os.environ["OTP_EVENT_KEY"] = os.environ.get("OTP_EVENT_KEY") or Fernet.generate_key().decode()  # also replaces ""

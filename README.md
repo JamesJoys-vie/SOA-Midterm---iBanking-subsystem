@@ -62,7 +62,7 @@ React 18 + Vite + Tailwind, TanStack Query; screens follow `docs/wireframes/wire
 
 ## Run
 1. `Copy-Item .env.example .env` and fill in the passwords, `JWT_SECRET`, `OTP_EVENT_KEY` (command in
-   `.env.example`; otp-service and notification-service do not start without it) and SMTP values
+   `.env.example`; `docker compose` refuses to run without it) and SMTP values
    (leave `SMTP_USER` empty to print emails to the log).
 2. Whole system: `docker compose up -d --build` -> web http://localhost:8080, Adminer http://localhost:8081.
 3. Demo data (once): `docker compose --profile tools run --rm seed` -> users `alice` / `bob` / `carol`
