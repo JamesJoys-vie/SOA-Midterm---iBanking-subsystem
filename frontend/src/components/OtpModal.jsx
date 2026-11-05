@@ -1,18 +1,21 @@
-// OTP step of /pay (see "4. OTP verification" in docs/wireframes/wireframes.html): 6-box input, expiry countdown,
-// resend cooldown, verify / cancel. Closing never happens by accident: no backdrop close, and ✕ asks to cancel.
+// OTP step of /pay (see "OTP verification" in docs/wireframes/modernization-proposal.html): 6-box input, expiry countdown,
+// resend cooldown, verify / cancel. ✕ and Esc only close the box: the payment stays open and can be resumed until its
+// timer ends. "Cancel payment" ends it now, after asking. The backdrop does nothing.
 // The code only lives in component state and request bodies: it is never put in the URL, storage or logs.
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
+import { X } from 'lucide-react'
 import { cancelTransaction, getTransaction, resendOtp, verifyOtp } from '../api/client.js'
 import { useSecondsLeft } from '../hooks/useTimers.js'
 import { formatClock, maskEmail } from '../utils/format.js'
-import { Alert, Button, Money, Stepper } from './ui.jsx'
+import { ConfirmBody, Modal } from './Dialog.jsx'
+import { Alert, Button, ExpiryBar, Money, Stepper } from './ui.jsx'
 
 // Number of digits in a code (otp-service issues 6-digit codes).
 const LENGTH = 6
 // Seconds between two codes of one transaction; otp-service enforces the same value and answers 429 otherwise.
 export const RESEND_COOLDOWN = 30
 // Code lifetime in seconds (default OTP_TTL_SECONDS); used to estimate a code's age.
-const OTP_TTL = 300
+export const OTP_TTL = 300
 
 // Resend cooldown left for a code with `expiresIn` seconds left (used on Resume).
 // With a shorter server TTL it returns 0; a 429 then sets the wait instead.
@@ -27,9 +30,11 @@ export function OtpInput({ value, onChange, disabled, onComplete }) {
   const refs = useRef([])
   // One entry per box ('' when empty), derived from `value`.
   const digits = Array.from({ length: LENGTH }, (_, i) => value[i] || '')
+  // The box that should receive focus when the input becomes usable.
+  const firstEmpty = Math.min(value.length, LENGTH - 1)
 
   // Focus the first empty box whenever the input becomes usable (modal opened, request finished).
-  useEffect(() => { if (!disabled) refs.current[Math.min(value.length, LENGTH - 1)]?.focus() }, [disabled]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!disabled) refs.current[firstEmpty]?.focus() }, [disabled]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Writes digit `d` into box `i` and returns the resulting code.
   const setAt = (i, d) => {
@@ -70,7 +75,7 @@ export function OtpInput({ value, onChange, disabled, onComplete }) {
   }
 
   return (
-    <div className="flex justify-center gap-2" onPaste={(e) => { e.preventDefault(); onPaste(e.clipboardData.getData('text')) }}>
+    <div className="flex justify-center gap-1.5 sm:gap-2" onPaste={(e) => { e.preventDefault(); onPaste(e.clipboardData.getData('text')) }}>
       {digits.map((d, i) => (
         <input
           key={i}
@@ -84,7 +89,8 @@ export function OtpInput({ value, onChange, disabled, onComplete }) {
           autoComplete={i === 0 ? 'one-time-code' : 'off'}
           maxLength={LENGTH}
           aria-label={`Digit ${i + 1}`}
-          className="h-12 w-10 rounded-lg border border-slate-300 text-center text-xl font-semibold outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-100 sm:w-12"
+          data-autofocus={i === firstEmpty ? true : undefined}
+          className="h-14 w-12 min-w-0 flex-[0_1_48px] rounded-[10px] border border-line-strong bg-card text-center text-[22px] font-semibold outline-none focus:border-action focus:ring-1 focus:ring-action disabled:bg-subtle disabled:text-muted"
         />
       ))}
     </div>
@@ -109,7 +115,8 @@ async function waitWhileProcessing(txn) {
 // `email`: payer email, shown masked. `initialExpiresIn`: seconds left on the current code (from `otp_expires_in`).
 // `initialCooldown`: seconds before Resend is allowed (30 right after a code was sent, 0 when resuming).
 // `onResult({transaction, balance_after})`: the attempt ended (or is finishing). `onCancelled(txn)`: the user cancelled.
-export default function OtpModal({ txn, tuition, email, initialExpiresIn, initialCooldown = RESEND_COOLDOWN, onResult, onCancelled }) {
+// `onClose()`: the user closed the box; the payment stays open.
+export default function OtpModal({ txn, tuition, email, initialExpiresIn, initialCooldown = RESEND_COOLDOWN, onResult, onCancelled, onClose }) {
   // Digits typed so far.
   const [code, setCode] = useState('')
   // Inline error from the last request (wrong code, rate limit, network...).
@@ -118,6 +125,8 @@ export default function OtpModal({ txn, tuition, email, initialExpiresIn, initia
   const [info, setInfo] = useState(null)
   // Request in flight: 'verify' | 'resend' | 'cancel' | null; disables the other actions meanwhile.
   const [busy, setBusy] = useState(null)
+  // "Cancel this payment?" replaces the code form.
+  const [asking, setAsking] = useState(false)
   // Epoch ms when the current code expires; moved forward by a successful resend.
   const [deadline, setDeadline] = useState(() => Date.now() + (initialExpiresIn ?? 0) * 1000)
   // Epoch ms from which Resend is allowed again.
@@ -127,6 +136,9 @@ export default function OtpModal({ txn, tuition, email, initialExpiresIn, initia
   const cooldown = useSecondsLeft(resendAt)
   // The code ran out: boxes disable and only Resend / Cancel remain.
   const expired = left === 0
+  // Ids tying the dialog to its heading.
+  const titleId = useId()
+  const bodyId = useId()
 
   // The transaction moved on without us (expired, cancelled elsewhere, already finished): read its real state and
   // hand it to the result view; `fallbackStatus` is used when even that read fails.
@@ -176,9 +188,8 @@ export default function OtpModal({ txn, tuition, email, initialExpiresIn, initia
     }
   }
 
-  // ✕ and "Cancel payment": confirm first, then POST /transactions/{id}/cancel (releases the tuition hold).
+  // "Yes, cancel": POST /transactions/{id}/cancel (releases the tuition hold).
   const cancel = async () => {
-    if (!window.confirm('Cancel this payment?')) return
     setBusy('cancel'); setError(null)
     try {
       onCancelled(await cancelTransaction(txn.id))
@@ -189,51 +200,79 @@ export default function OtpModal({ txn, tuition, email, initialExpiresIn, initia
     }
   }
 
+  // Student name and amount, so it is clear what is being confirmed. The amount stays visible when amounts are hidden.
+  const recap = (
+    <div className="flex items-center justify-between gap-2.5 rounded-[10px] bg-subtle px-3 py-2.5 text-[13px] text-ink-2">
+      <span>MSSV {txn.student_id}{tuition?.student_name ? ` · ${tuition.student_name}` : ''}</span>
+      <Money value={txn.amount} alwaysVisible className="text-sm font-semibold text-ink" />
+    </div>
+  )
+
+  // Esc goes back from the question, otherwise closes the box. It waits while a request is running.
+  const onEscape = () => {
+    if (busy) return
+    if (asking) { setAsking(false); setError(null) } else onClose()
+  }
+
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 p-0 sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-labelledby="otp-title">
-      <div className="relative w-full max-w-md space-y-5 rounded-t-2xl bg-white p-6 shadow-xl sm:rounded-2xl">
-        <button type="button" onClick={cancel} disabled={!!busy} aria-label="Cancel payment" className="absolute right-4 top-4 rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700">✕</button>
-        <Stepper current={2} />
+    <Modal role={asking ? 'alertdialog' : 'dialog'} labelledBy={titleId} describedBy={asking ? bodyId : undefined} onEscape={onEscape}>
+      {asking ? (
+        <ConfirmBody
+          titleId={titleId}
+          bodyId={bodyId}
+          title="Cancel this payment?"
+          body="No money has been taken. The tuition is released so it can be paid again."
+          recap={recap}
+          error={error}
+          keepLabel="Keep paying"
+          confirmLabel="Yes, cancel"
+          busy={busy === 'cancel'}
+          onKeep={() => { setAsking(false); setError(null) }}
+          onConfirm={cancel}
+        />
+      ) : (
+        // method="post" + no action: even if the submit handler failed, the browser would never put the code in the URL.
+        <form method="post" onSubmit={(e) => { e.preventDefault(); verify() }} className="grid gap-3.5">
+          <Stepper current={2} />
+          <div className="flex items-center justify-between gap-2.5">
+            <h2 id={titleId} className="text-xl font-bold">Enter verification code</h2>
+            <button type="button" onClick={onClose} disabled={!!busy} aria-label="Close. The payment stays open until the code expires" title="Close" className="flex h-11 w-11 flex-none items-center justify-center rounded-[10px] text-ink-2 hover:bg-subtle disabled:opacity-40">
+              <X className="h-5 w-5" aria-hidden="true" />
+            </button>
+          </div>
+          <p className="text-sm text-ink-2">We sent a 6-digit code to {maskEmail(email) || 'your email'}</p>
+          {recap}
 
-        <div>
-          <h2 id="otp-title" className="text-lg font-semibold text-slate-900">Enter verification code</h2>
-          <p className="text-sm text-slate-500">We sent a 6-digit code to {maskEmail(email) || 'your email'}</p>
-        </div>
-
-        <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm">
-          <span className="text-slate-600">MSSV {txn.student_id}{tuition?.student_name ? ` · ${tuition.student_name}` : ''}</span>
-          <Money value={txn.amount} className="font-semibold text-slate-900" />
-        </div>
-
-        {/* method="post" + no action: even if the submit handler failed, the browser would never put the code in the URL. */}
-        <form method="post" onSubmit={(e) => { e.preventDefault(); verify() }} className="space-y-4">
           <OtpInput value={code} onChange={setCode} disabled={expired || !!busy} onComplete={verify} />
 
-          <div className="flex items-center justify-between text-sm">
-            {expired
-              ? <span className="font-medium text-red-600">Code expired — resend</span>
-              : <span className="text-slate-500">Code expires in <span className="tabular-nums font-medium text-slate-800">{formatClock(left)}</span></span>}
-            <button
-              type="button"
-              onClick={resend}
-              disabled={cooldown > 0 || !!busy}
-              className="font-medium text-blue-600 hover:underline disabled:cursor-not-allowed disabled:text-slate-400 disabled:no-underline"
-            >
-              {busy === 'resend' ? 'Sending…' : cooldown > 0 ? `Resend code (${formatClock(cooldown).replace(/^0/, '')})` : 'Resend code'}
-            </button>
+          <div className="grid gap-1">
+            <ExpiryBar share={left / OTP_TTL} tone={left > 60 ? 'bg-action' : 'bg-warn'} />
+            <div className="flex items-center justify-between gap-2.5 text-[13px] text-ink-2">
+              {expired
+                ? <span className="font-medium text-bad">Code expired. Send a new one.</span>
+                : <span>Code expires in <span className="tabular-nums">{formatClock(left)}</span></span>}
+              <button
+                type="button"
+                onClick={resend}
+                disabled={cooldown > 0 || !!busy}
+                className="min-h-11 font-semibold text-action disabled:cursor-not-allowed disabled:font-normal disabled:text-muted"
+              >
+                {busy === 'resend' ? 'Sending…' : cooldown > 0 ? `Resend code (${formatClock(cooldown).replace(/^0/, '')})` : 'Resend code'}
+              </button>
+            </div>
           </div>
 
           {error && <Alert>{error}</Alert>}
           {info && !error && <Alert kind="info">{info}</Alert>}
 
-          <div className="flex justify-end gap-2">
-            <Button variant="secondary" onClick={cancel} loading={busy === 'cancel'} disabled={!!busy && busy !== 'cancel'}>Cancel payment</Button>
+          <div className="grid grid-cols-2 gap-2.5">
+            <Button variant="ghost" onClick={() => { setAsking(true); setError(null) }} disabled={!!busy}>Cancel payment</Button>
             <Button type="submit" loading={busy === 'verify'} disabled={code.length !== LENGTH || expired || (!!busy && busy !== 'verify')}>
-              {busy === 'verify' ? 'Verifying…' : 'Verify & pay'}
+              {busy === 'verify' ? 'Verifying…' : 'Verify and pay'}
             </Button>
           </div>
         </form>
-      </div>
-    </div>
+      )}
+    </Modal>
   )
 }
