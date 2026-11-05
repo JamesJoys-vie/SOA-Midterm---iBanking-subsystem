@@ -1,0 +1,1252 @@
+<!doctype html>
+<html lang="en" data-theme="pine">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>iBanking UI Proposal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* Proposal only: sample data in memory, no calls to the backend. Tokens match the Figma "Visual direction" page. */
+  :root, [data-theme="pine"] {
+    --page:#F7F6F2; --card:#FFFFFF; --subtle:#EDF1EE; --hero:#0E3B38; --on-hero:#FFFFFF;
+    --ink:#14201E; --ink2:#46524F; --muted:#66726E; --line:#DDE2DE; --line2:#8C9793;
+    --action:#0B5C56; --on-action:#FFFFFF; --ok:#14794B; --on-ok:#FFFFFF; --warn:#9A5B00; --bad:#B3261E;
+    --scrim:rgba(14,32,30,.5); --shadow:0 18px 50px rgba(14,32,30,.2);
+  }
+  [data-theme="blue"] {
+    --page:#F8FAFC; --card:#FFFFFF; --subtle:#F1F5F9; --hero:#1E3A8A; --on-hero:#FFFFFF;
+    --ink:#0F172A; --ink2:#475569; --muted:#64748B; --line:#E2E8F0; --line2:#94A3B8;
+    --action:#2563EB; --on-action:#FFFFFF; --ok:#047857; --on-ok:#FFFFFF; --warn:#B45309; --bad:#B91C1C;
+    --scrim:rgba(15,23,42,.5); --shadow:0 18px 50px rgba(15,23,42,.2);
+  }
+  [data-theme="dark"] {
+    --page:#0E1615; --card:#16211F; --subtle:#1F2C29; --hero:#0F4A45; --on-hero:#FFFFFF;
+    --ink:#E8EEEB; --ink2:#B4C0BC; --muted:#93A09B; --line:#2C3936; --line2:#66746F;
+    --action:#4FC2B3; --on-action:#08201D; --ok:#6FD39F; --on-ok:#06210F; --warn:#E9B35E; --bad:#FF9A90;
+    --scrim:rgba(0,0,0,.6); --shadow:0 18px 50px rgba(0,0,0,.5);
+  }
+  * { box-sizing:border-box; }
+  html { -webkit-text-size-adjust:100%; }
+  body { margin:0; background:var(--page); color:var(--ink); font:14px/1.5 "Be Vietnam Pro", system-ui, "Segoe UI", sans-serif; }
+  h1,h2,h3,p,ol,ul,dl,dd { margin:0; padding:0; }
+  ol,ul { list-style:none; }
+  button,input,select { font:inherit; color:inherit; }
+  button { background:none; border:0; padding:0; cursor:pointer; }
+  button:disabled { cursor:not-allowed; }
+  :focus-visible { outline:2px solid var(--action); outline-offset:2px; }
+  .sr { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+  .num { font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .mono { font-family:ui-monospace, Consolas, monospace; font-size:12px; }
+  .icon { flex:none; display:block; }
+
+  /* ---------- Document ---------- */
+  .doc-bar { position:sticky; top:0; z-index:50; background:var(--card); border-bottom:1px solid var(--line); }
+  .doc-bar-in { max-width:1680px; margin:0 auto; padding:10px 24px; display:flex; flex-wrap:wrap; align-items:center; gap:10px 20px; }
+  .doc-bar strong { font-size:15px; margin-right:auto; }
+  .ctl { display:inline-flex; align-items:center; gap:8px; font-size:13px; color:var(--ink2); }
+  .seg { display:inline-flex; padding:3px; gap:2px; border-radius:10px; background:var(--subtle); }
+  .seg button { padding:5px 12px; min-height:32px; border-radius:7px; font-size:13px; font-weight:500; color:var(--ink2); }
+  .seg button[aria-pressed="true"] { background:var(--card); color:var(--ink); font-weight:600; box-shadow:0 1px 2px rgba(0,0,0,.14); }
+  select.pick { min-height:38px; padding:0 10px; border-radius:9px; border:1px solid var(--line2); background:var(--card); }
+  .ctl input[type=checkbox] { width:18px; height:18px; accent-color:var(--action); margin:0; }
+  .link-btn { min-height:38px; padding:0 12px; border-radius:9px; border:1px solid var(--line2); font-size:13px; font-weight:500; background:var(--card); }
+  .doc { max-width:1680px; margin:0 auto; padding:32px 24px 72px; }
+  .intro { max-width:800px; margin-bottom:28px; }
+  .intro h1 { font-size:clamp(28px,4vw,42px); line-height:1.15; font-weight:700; letter-spacing:-.01em; margin-bottom:10px; }
+  .intro p { font-size:16px; color:var(--ink2); }
+  .intro a { color:inherit; font-weight:600; }
+
+  .stage { display:grid; grid-template-columns:minmax(0,1fr) 320px; gap:24px; align-items:start; }
+  @media (max-width:1240px) { .stage { grid-template-columns:minmax(0,1fr); } .aside { order:-1; } }
+  .aside { display:grid; gap:14px; align-content:start; }
+  .panel { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px 18px; }
+  .panel h2 { font-size:12px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--muted); margin-bottom:10px; }
+  .panel .screen-name { font-size:17px; font-weight:700; margin-bottom:12px; }
+  .change { display:grid; gap:2px; padding:9px 0; border-top:1px solid var(--line); font-size:13px; }
+  .change:first-of-type { border-top:0; padding-top:0; }
+  .change b { font-weight:600; }
+  .change span { color:var(--ink2); }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; }
+  .try { min-height:34px; padding:4px 11px; border:1px solid var(--line2); border-radius:999px; font-size:12px; font-weight:500; background:var(--card); text-align:left; }
+  .try:hover { border-color:var(--action); }
+  .try small { color:var(--muted); font-size:11px; margin-left:3px; }
+  .panel-hint { font-size:12px; color:var(--muted); margin-top:9px; }
+
+  .device { width:100%; margin:0 auto; border:1px solid var(--line2); border-radius:14px; overflow:hidden; background:var(--card); box-shadow:0 6px 24px rgba(0,0,0,.07); }
+  .device.is-mobile { width:390px; max-width:100%; border-radius:28px; }
+  .browser-bar { display:flex; align-items:center; gap:10px; padding:8px 12px; background:var(--subtle); border-bottom:1px solid var(--line); }
+  .browser-bar i { width:9px; height:9px; border-radius:50%; background:var(--line2); }
+  .browser-bar .dots { display:flex; gap:5px; }
+  .url { flex:1; padding:3px 10px; border-radius:6px; background:var(--card); border:1px solid var(--line); font:12px ui-monospace, Consolas, monospace; color:var(--muted); }
+  .is-mobile .browser-bar { display:none; }
+
+  .sect { margin-top:64px; }
+  .sect > h2 { font-size:26px; font-weight:700; margin-bottom:6px; }
+  .sect > p { color:var(--ink2); margin-bottom:18px; max-width:760px; }
+  .cmp { background:var(--card); border:1px solid var(--line); border-radius:14px; overflow:hidden; }
+  .cmp-row { display:grid; grid-template-columns:150px minmax(0,1fr) minmax(0,1fr); gap:18px; padding:14px 18px; border-top:1px solid var(--line); }
+  .cmp-row:first-child { border-top:0; background:var(--subtle); font-size:12px; font-weight:600; color:var(--ink2); }
+  .cmp-row b { font-weight:600; }
+  .cmp-row div:nth-child(2) { color:var(--ink2); }
+  @media (max-width:760px) { .cmp-row { grid-template-columns:1fr; gap:4px; } .cmp-row:first-child { display:none; } .cmp-row div:nth-child(2)::before { content:"Today: "; font-weight:600; } .cmp-row div:nth-child(3)::before { content:"Proposed: "; font-weight:600; } }
+  .plan { display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:14px; }
+  .phase { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:18px; }
+  .phase .n { font-size:12px; font-weight:600; color:var(--muted); }
+  .phase h3 { font-size:17px; font-weight:700; margin:2px 0 8px; }
+  .phase p { font-size:13px; color:var(--ink2); }
+  .decide { display:grid; gap:10px; }
+  .decision { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px 18px; display:grid; gap:4px; }
+  .decision b { font-size:15px; font-weight:600; }
+  .decision span { color:var(--ink2); font-size:13px; }
+
+  /* ---------- App ---------- */
+  .app { container:app / inline-size; position:relative; height:800px; overflow:hidden; background:var(--page); display:flex; flex-direction:column; }
+  .shell { display:flex; flex-direction:column; flex:1; min-height:0; }
+  .topbar { flex:none; height:64px; background:var(--card); border-bottom:1px solid var(--line); position:relative; z-index:5; }
+  .topbar-in { height:100%; max-width:1104px; margin:0 auto; padding:0 32px; display:flex; align-items:center; gap:28px; }
+  .logo { display:flex; align-items:center; gap:10px; font-weight:700; font-size:17px; min-height:44px; }
+  .logo-mark { width:28px; height:28px; border-radius:8px; background:var(--action); color:var(--on-action); display:grid; place-items:center; font-size:16px; font-weight:700; }
+  .nav { display:flex; gap:4px; }
+  .nav button { min-height:38px; padding:0 14px; border-radius:8px; font-weight:500; color:var(--ink2); }
+  .nav button:hover { background:var(--subtle); }
+  .nav button[aria-current="page"] { background:var(--subtle); color:var(--ink); font-weight:600; }
+  .top-right { margin-left:auto; display:flex; align-items:center; gap:6px; position:relative; }
+  .icon-btn { width:44px; height:44px; border-radius:10px; display:grid; place-items:center; color:var(--ink2); }
+  .icon-btn:hover { background:var(--subtle); color:var(--ink); }
+  .account { display:flex; align-items:center; gap:8px; min-height:44px; padding:0 8px; border-radius:10px; font-weight:500; }
+  .account:hover { background:var(--subtle); }
+  .avatar { width:30px; height:30px; border-radius:50%; background:var(--subtle); color:var(--ink2); display:grid; place-items:center; font-size:11px; font-weight:600; }
+  .menu { position:absolute; right:0; top:calc(100% + 6px); width:240px; background:var(--card); border:1px solid var(--line); border-radius:12px; box-shadow:var(--shadow); padding:8px; z-index:10; }
+  .menu p { padding:6px 10px 10px; border-bottom:1px solid var(--line); margin-bottom:6px; font-size:12px; color:var(--muted); overflow-wrap:anywhere; }
+  .menu p b { display:block; color:var(--ink); font-size:14px; font-weight:600; }
+  .menu button { width:100%; min-height:44px; padding:0 10px; border-radius:8px; text-align:left; font-weight:500; }
+  .menu button:hover { background:var(--subtle); }
+  .app-main { flex:1; min-height:0; overflow:auto; }
+  .content { max-width:1104px; margin:0 auto; padding:32px 32px 48px; display:grid; gap:20px; }
+  .title { font-size:26px; font-weight:700; line-height:1.25; outline:none; }
+  .title-row { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; }
+  .tabbar { display:none; flex:none; background:var(--card); border-top:1px solid var(--line); padding:8px 16px 12px; }
+  .tabbar button { flex:1; min-height:52px; display:grid; justify-items:center; gap:3px; font-size:12px; font-weight:500; color:var(--muted); }
+  .tabbar button span { display:grid; place-items:center; width:56px; height:28px; border-radius:14px; }
+  .tabbar button[aria-current="page"] { color:var(--ink); font-weight:600; }
+  .tabbar button[aria-current="page"] span { background:var(--subtle); }
+
+  .card { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:20px; }
+  .card-title { font-size:18px; font-weight:600; }
+  .btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:44px; padding:0 18px; border-radius:10px; font-weight:600; white-space:nowrap; transition:background .12s, border-color .12s; }
+  .btn.primary { background:var(--action); color:var(--on-action); }
+  .btn.primary:hover:not(:disabled) { filter:brightness(1.12); }
+  .btn.secondary { background:var(--card); color:var(--ink); border:1px solid var(--line2); }
+  .btn.secondary:hover:not(:disabled) { border-color:var(--ink2); }
+  .btn.ghost { color:var(--ink2); }
+  .btn.ghost:hover:not(:disabled) { background:var(--subtle); }
+  .btn.block { width:100%; }
+  .btn:disabled { background:var(--subtle); color:var(--muted); border-color:transparent; }
+  .btn.on-hero { background:#fff; color:#14201E; align-self:start; }
+  .btn.on-hero:hover { background:#EDF1EE; }
+  .spin { width:16px; height:16px; border-radius:50%; border:2px solid currentColor; border-right-color:transparent; animation:spin .7s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .skel { display:block; height:14px; border-radius:6px; background:var(--subtle); animation:pulse 1.2s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity:.5; } }
+
+  .pill { display:inline-flex; align-items:center; gap:5px; padding:3px 10px; min-height:24px; border-radius:999px; font-size:12px; font-weight:500; white-space:nowrap; border:1px solid transparent; }
+  .pill.ok { background:var(--ok); color:var(--on-ok); }
+  .pill.progress { border-color:var(--warn); color:var(--warn); }
+  .pill.ended { border:1px dashed var(--line2); color:var(--ink2); }
+  .pill.neutral { background:var(--card); border-color:var(--line); color:var(--ink2); }
+
+  .alert { display:flex; gap:8px; align-items:flex-start; padding:10px 12px; border-radius:10px; border:1px solid var(--line2); font-size:13px; color:var(--ink2); }
+  .alert.bad { border-color:var(--bad); color:var(--bad); }
+  .reason { display:flex; gap:8px; align-items:flex-start; font-size:13px; color:var(--ink2); }
+  .reason.bad { color:var(--bad); }
+  .reason .icon { margin-top:2px; }
+
+  .field { display:grid; gap:6px; }
+  .field label { font-size:13px; font-weight:500; color:var(--ink2); }
+  .input-wrap { position:relative; }
+  .input { width:100%; height:46px; padding:0 14px; border-radius:10px; border:1px solid var(--line2); background:var(--card); font-size:15px; }
+  .input:focus { outline:none; border:2px solid var(--action); padding:0 13px; }
+  .input[aria-invalid="true"] { border:2px solid var(--bad); padding:0 13px; }
+  .input:disabled { background:var(--subtle); color:var(--muted); }
+  .input-side { position:absolute; right:6px; top:1px; height:44px; min-width:44px; display:grid; place-items:center; font-size:12px; font-weight:500; color:var(--ink2); }
+  .help { font-size:12px; color:var(--muted); }
+  .err { font-size:12px; color:var(--bad); font-weight:500; }
+
+  /* Login */
+  .login { flex:1; min-height:0; display:grid; grid-template-columns:44% 1fr; overflow:auto; }
+  .brand { background:var(--hero); color:var(--on-hero); padding:48px; display:flex; flex-direction:column; justify-content:space-between; gap:32px; }
+  .brand .logo-mark { background:#fff; color:#14201E; }
+  .brand h2 { font-size:36px; line-height:1.2; font-weight:700; margin-bottom:26px; }
+  .brand li { display:flex; gap:14px; margin-bottom:18px; }
+  .brand .dot { flex:none; width:32px; height:32px; border-radius:50%; border:1px solid currentColor; display:grid; place-items:center; font-size:13px; font-weight:600; }
+  .brand li b { display:block; font-size:15px; font-weight:600; }
+  .brand li span, .brand .foot { opacity:.8; font-size:13px; }
+  .brand .foot { display:flex; gap:8px; align-items:center; font-size:12px; }
+  .login-side { display:grid; place-items:center; padding:32px 16px; }
+  .login-form { width:100%; max-width:360px; display:grid; gap:16px; }
+  .login-form .logo { display:none; }
+  .login-form > div > p { color:var(--ink2); }
+
+  /* Home */
+  .home-top { display:grid; grid-template-columns:minmax(0,1fr) 340px; gap:20px; }
+  .hero { background:var(--hero); color:var(--on-hero); border-radius:20px; padding:28px; display:flex; flex-direction:column; gap:18px; }
+  .hero-label { display:flex; align-items:center; gap:4px; opacity:.9; }
+  .hero-label .icon-btn { color:inherit; width:36px; height:36px; }
+  .hero-label .icon-btn:hover { background:rgba(255,255,255,.14); color:inherit; }
+  .hero:focus-visible, .hero :focus-visible { outline-color:#fff; }
+  .hero-amt { font-size:clamp(30px,5cqw,44px); line-height:1.1; font-weight:700; }
+  .hero-sub { font-size:13px; opacity:.8; margin-top:4px; }
+  .stats { display:grid; align-content:center; }
+  .stat { padding:14px 0; }
+  .stat + .stat { border-top:1px solid var(--line); }
+  .stat p { font-size:13px; color:var(--ink2); }
+  .stat div { display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 10px; }
+  .stat b { font-size:24px; font-weight:700; }
+  .stat small { font-size:13px; color:var(--ink2); }
+  .pending { display:flex; align-items:center; gap:16px; padding:16px 20px; border-radius:16px; background:var(--card); border:2px solid var(--warn); }
+  .pending-ic { flex:none; width:40px; height:40px; border-radius:50%; display:grid; place-items:center; background:var(--subtle); color:var(--warn); }
+  .pending-main { flex:1; min-width:0; display:grid; gap:5px; }
+  .pending-main b { font-weight:600; }
+  .pending-main small { font-size:13px; color:var(--ink2); }
+  .pending-acts { display:flex; gap:8px; }
+  .bar { height:4px; border-radius:2px; background:var(--subtle); overflow:hidden; }
+  .bar i { display:block; height:100%; border-radius:2px; background:var(--warn); transition:width 1s linear; }
+  .bar.calm i { background:var(--action); }
+  .list { background:var(--card); border:1px solid var(--line); border-radius:16px; overflow:hidden; }
+  .list-head { display:flex; align-items:center; justify-content:space-between; padding:14px 16px 8px; }
+  .list-head h2 { font-size:16px; font-weight:600; }
+  .view-all { display:inline-flex; gap:6px; align-items:center; min-height:44px; padding:0 6px; font-weight:500; color:var(--ink2); }
+  .row { width:100%; display:grid; grid-template-columns:minmax(0,1fr) 140px 160px 16px; gap:14px; align-items:center; padding:13px 16px; border-top:1px solid var(--line); text-align:left; min-height:60px; color:var(--ink); }
+  .row:hover { background:var(--subtle); }
+  .row b { display:block; font-weight:600; }
+  .row small { display:block; font-size:12px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .r-amt { text-align:right; font-weight:600; }
+  .r-chev { color:var(--muted); }
+  .skel-row { padding:18px 16px; border-top:1px solid var(--line); }
+  .empty { padding:40px 16px; text-align:center; display:grid; gap:4px; justify-items:center; }
+  .empty b { font-weight:600; font-size:16px; }
+  .empty p { color:var(--ink2); margin-bottom:12px; }
+  .group { padding:14px 16px 6px; font-size:12px; font-weight:600; color:var(--muted); border-top:1px solid var(--line); }
+  .group + .row { border-top:0; }
+
+  /* Pay */
+  .stepper { display:flex; align-items:center; gap:8px; font-size:13px; color:var(--muted); }
+  .stepper li { display:flex; align-items:center; gap:8px; }
+  .stepper .d { width:24px; height:24px; border-radius:50%; background:var(--subtle); display:grid; place-items:center; font-size:12px; font-weight:600; }
+  .stepper .on .d, .stepper .done .d { background:var(--action); color:var(--on-action); }
+  .stepper .on { color:var(--ink); font-weight:600; }
+  .stepper .bar-l { width:26px; height:1px; background:var(--line2); }
+  .step-mini { display:none; font-size:13px; color:var(--ink2); }
+  .pay-grid { display:grid; grid-template-columns:minmax(0,1fr) 370px; gap:20px; align-items:start; }
+  .pay-left { display:grid; gap:20px; min-width:0; }
+  .pay-card { padding:24px; display:grid; gap:16px; }
+  .match { padding:16px; border-radius:12px; background:var(--subtle); display:grid; gap:12px; }
+  .match-top { display:flex; align-items:center; gap:12px; }
+  .match-ic { flex:none; width:40px; height:40px; border-radius:50%; background:var(--card); display:grid; place-items:center; color:var(--ink2); }
+  .match-name { flex:1; min-width:0; }
+  .match-name b { display:block; font-size:16px; font-weight:600; }
+  .match-name small { font-size:13px; color:var(--ink2); }
+  .match-due { display:flex; align-items:center; justify-content:space-between; gap:12px; border-top:1px solid var(--line2); padding-top:12px; flex-wrap:wrap; }
+  .match-due span:first-child { color:var(--ink2); }
+  .match-due .num { font-size:22px; font-weight:700; }
+  .held { border-top:1px solid var(--line2); padding-top:12px; display:grid; gap:10px; }
+  .held-text b { display:block; font-weight:600; }
+  .held-text span { font-size:13px; color:var(--ink2); }
+  .held-acts { display:flex; flex-wrap:wrap; gap:8px; }
+  .held-acts .btn { flex:1; }
+  .held-check { font-size:12px; color:var(--muted); }
+  .held-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:14px; margin-bottom:14px; }
+  .held-card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:18px; display:grid; gap:12px; align-content:start; }
+  .held-card h3 { font-size:14px; font-weight:700; }
+  .cmp.plain .cmp-row div::before { content:none !important; }
+  .from-title { display:flex; align-items:center; gap:8px; font-weight:600; margin-bottom:10px; }
+  .from-grid { display:flex; flex-wrap:wrap; gap:10px 40px; }
+  .from-grid dt { font-size:12px; color:var(--muted); }
+  .from-grid dd { font-weight:500; overflow-wrap:anywhere; }
+  .summary { position:sticky; top:0; padding:24px; display:grid; gap:14px; }
+  .sum-rows { display:grid; gap:10px; }
+  .sum-row { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .sum-row > span:first-child { display:inline-flex; align-items:center; color:var(--ink2); }
+  .sum-row .icon-btn { width:32px; height:32px; }
+  .sum-row.total { border-top:1px solid var(--line); padding-top:10px; }
+  .sum-row.total > span { font-weight:700; color:var(--ink); font-size:16px; }
+  .neg { color:var(--bad) !important; }
+  .check { display:flex; gap:10px; align-items:center; min-height:44px; font-size:13px; cursor:pointer; }
+  .check input { width:20px; height:20px; margin:0; accent-color:var(--action); flex:none; }
+  details.terms { font-size:12px; color:var(--ink2); margin-top:-8px; }
+  details.terms summary { cursor:pointer; min-height:24px; }
+  details.terms ul { list-style:disc; padding-left:16px; margin-top:4px; display:grid; gap:3px; }
+  .next-note { display:flex; gap:8px; font-size:13px; color:var(--ink2); }
+  .next-note .icon { margin-top:2px; }
+  .sum-actions { display:grid; gap:10px; }
+  .sticky-bar { display:none; flex:none; background:var(--card); border-top:1px solid var(--line); padding:8px 16px 16px; }
+
+  /* Overlays */
+  .scrim { position:absolute; inset:0; z-index:20; background:var(--scrim); display:grid; place-items:center; padding:16px; overflow:auto; animation:fade .14s ease-out; }
+  @keyframes fade { from { opacity:0; } }
+  .dialog { width:100%; max-width:440px; background:var(--card); border-radius:20px; padding:24px; display:grid; gap:14px; box-shadow:var(--shadow); animation:rise .16s ease-out; }
+  @keyframes rise { from { transform:translateY(10px); } }
+  .dialog-head { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .dialog h2 { font-size:20px; font-weight:700; outline:none; }
+  .dialog > p { color:var(--ink2); }
+  .recap { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; border-radius:10px; background:var(--subtle); font-size:13px; color:var(--ink2); }
+  .recap b { color:var(--ink); font-weight:600; font-size:14px; }
+  .otp { display:flex; justify-content:center; gap:8px; }
+  .otp input { width:48px; height:56px; min-width:0; flex:0 1 48px; border-radius:10px; border:1px solid var(--line2); background:var(--card); text-align:center; font-size:22px; font-weight:600; }
+  .otp input:focus { outline:none; border:2px solid var(--action); }
+  .otp input:disabled { background:var(--subtle); color:var(--muted); }
+  .otp-meta { display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:13px; color:var(--ink2); }
+  .resend { min-height:44px; font-weight:600; color:var(--action); }
+  .resend:disabled { color:var(--muted); font-weight:400; }
+  .dialog-acts { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .drawer-scrim { position:absolute; inset:0; z-index:20; background:var(--scrim); animation:fade .14s ease-out; }
+  .drawer { position:absolute; z-index:21; top:0; right:0; bottom:0; width:400px; max-width:100%; background:var(--card); padding:24px; display:flex; flex-direction:column; gap:14px; overflow:auto; box-shadow:var(--shadow); animation:slide .18s ease-out; }
+  @keyframes slide { from { transform:translateX(24px); } }
+  .drawer h2 { font-size:18px; font-weight:700; outline:none; }
+  .drawer-amt { font-size:30px; font-weight:700; line-height:1.2; }
+  .why { padding:12px; border-radius:10px; border:1px solid var(--bad); display:grid; gap:4px; }
+  .why b { font-size:12px; font-weight:600; color:var(--bad); }
+  .kv { display:grid; gap:10px; }
+  .kv > div { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+  .kv dt { color:var(--ink2); }
+  .kv dd { font-weight:500; text-align:right; }
+  .copy { display:inline-flex; align-items:center; gap:6px; min-height:32px; color:var(--ink2); }
+  .spacer { flex:1; }
+
+  /* Result */
+  .receipt { width:100%; max-width:480px; margin:0 auto; padding:28px; display:grid; gap:16px; }
+  .res-head { display:grid; justify-items:center; gap:6px; text-align:center; }
+  .res-ic { width:56px; height:56px; border-radius:50%; background:var(--subtle); display:grid; place-items:center; }
+  .res-ic.ok { color:var(--ok); } .res-ic.progress { color:var(--warn); } .res-ic.bad { color:var(--bad); }
+  .res-head h2 { font-size:21px; font-weight:700; outline:none; }
+  .res-head p { color:var(--ink2); }
+  .rule { border-top:1px dashed var(--line2); }
+  .print { display:inline-flex; align-items:center; justify-content:center; gap:6px; min-height:44px; font-size:13px; font-weight:500; color:var(--ink2); }
+  .res-acts { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+
+  /* History */
+  .toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:10px; padding:16px; }
+  .search { position:relative; width:260px; max-width:100%; }
+  .search .icon { position:absolute; left:12px; top:12px; color:var(--muted); }
+  .search input { width:100%; height:40px; padding:0 12px 0 34px; border-radius:10px; border:1px solid var(--line2); background:var(--card); font-size:13px; }
+  .filter { display:flex; flex-wrap:wrap; gap:6px; }
+  .filter button { min-height:36px; padding:0 14px; border-radius:999px; border:1px solid var(--line2); font-size:13px; font-weight:500; color:var(--ink2); background:var(--card); }
+  .filter button[aria-pressed="true"] { background:var(--action); border-color:var(--action); color:var(--on-action); font-weight:600; }
+  .pager { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 16px; border-top:1px solid var(--line); font-size:13px; color:var(--muted); }
+  .pager div { display:flex; align-items:center; gap:4px; }
+  .pager button { width:36px; height:36px; border-radius:8px; }
+  .pager button:hover:not(:disabled) { background:var(--subtle); }
+  .pager button:disabled { opacity:.35; }
+
+  /* The app reacts to its own width, so the Mobile switch shows the true layout at any window size. */
+  @container app (max-width:759px) {
+    .topbar { height:56px; }
+    .topbar-in { padding:0 8px 0 16px; gap:8px; }
+    .nav, .account-name, .account .icon { display:none; }
+    .tabbar { display:flex; gap:8px; }
+    .content { padding:16px 16px 24px; gap:14px; }
+    .title { font-size:22px; }
+    .login { grid-template-columns:1fr; }
+    .brand { display:none; }
+    .login-form .logo { display:flex; }
+    .home-top { grid-template-columns:1fr; gap:12px; }
+    .hero { padding:20px; gap:14px; border-radius:18px; }
+    .btn.on-hero { align-self:stretch; }
+    .stats { grid-template-columns:1fr 1fr; padding:14px; }
+    .stat { padding:0 0 0 14px; } .stat:first-child { padding-left:0; }
+    .stat + .stat { border-top:0; border-left:1px solid var(--line); }
+    .stat small { display:none; }
+    .stat b { font-size:22px; }
+    .pending { flex-wrap:wrap; padding:14px; gap:10px 12px; }
+    .pending-main { flex:1 1 calc(100% - 56px); }
+    .pending-acts { width:100%; display:grid; grid-template-columns:1fr 1fr; }
+    .row { grid-template-columns:minmax(0,1fr) auto; gap:4px 12px; }
+    .r-main { grid-row:1 / 3; }
+    .r-chev { display:none; }
+    .r-pill { justify-self:end; }
+    .stepper { display:none; }
+    .step-mini { display:block; }
+    .title-row.pay-head { display:grid; gap:0; }
+    .pay-grid { grid-template-columns:minmax(0,1fr); gap:14px; }
+    .pay-left { display:contents; }
+    .pay-left > section:last-child { order:2; }
+    .pay-card, .summary { padding:16px; }
+    .summary { position:static; }
+    .is-payable .sum-actions, .is-payable .sum-terms { display:none; }
+    .is-payable .sticky-bar { display:grid; gap:4px; }
+    .is-payable .tabbar { display:none; }
+    .from-grid { display:grid; gap:6px; }
+    .scrim { place-items:end stretch; padding:0; }
+    .dialog { max-width:none; border-radius:20px 20px 0 0; padding:20px 16px 24px; }
+    .otp { gap:6px; }
+    .dialog .stepper { display:none; }
+    .drawer { top:auto; left:0; width:100%; max-height:85%; border-radius:20px 20px 0 0; padding:20px 16px 24px; animation:rise .18s ease-out; }
+    .receipt { padding:20px 16px; }
+    .toolbar { padding:12px; }
+    .search { width:100%; }
+    .filter { flex-wrap:nowrap; overflow-x:auto; width:100%; padding-bottom:2px; }
+    .filter button { min-height:44px; flex:none; }
+    .list-head { padding:8px 16px 4px; }
+  }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; } }
+  @media print {
+    body * { visibility:hidden; }
+    .app, .shell, .app-main { overflow:visible; height:auto; }
+    .receipt, .receipt * { visibility:visible; }
+    .receipt { position:fixed; left:0; top:0; border:0; }
+    .res-acts, .print { display:none; }
+  }
+</style>
+</head>
+<body>
+<div class="doc-bar"><div class="doc-bar-in">
+  <strong>iBanking UI proposal</strong>
+  <span class="ctl"><span id="view-label">View</span>
+    <span class="seg" role="group" aria-labelledby="view-label">
+      <button type="button" data-view="desktop" aria-pressed="true">Desktop</button>
+      <button type="button" data-view="mobile" aria-pressed="false">Mobile</button>
+    </span>
+  </span>
+  <label class="ctl">Theme
+    <select class="pick" id="theme">
+      <option value="pine">Deep pine (proposed)</option>
+      <option value="blue">Blue (current hue)</option>
+      <option value="dark">Pine dark (later)</option>
+    </select>
+  </label>
+  <label class="ctl"><input type="checkbox" id="tuition-visible" checked> Show tuition when amounts are hidden</label>
+  <button type="button" class="link-btn" id="reset">Reset demo</button>
+</div></div>
+
+<main class="doc">
+  <div class="intro">
+    <h1>The same payment flow, easier to read and safer to confirm</h1>
+    <p>This is the UI spec, adopted on 2026-11-05, as a working prototype. It uses sample data only and never contacts the backend. The structure is also in <a href="https://www.figma.com/design/7NNXMol5daHm7ywjCbd8mC">Figma</a>. Where this page is silent, <a href="wireframes.html">the earlier wireframes</a> still apply.</p>
+  </div>
+
+  <div class="stage">
+    <div class="device" id="device">
+      <div class="browser-bar"><span class="dots"><i></i><i></i><i></i></span><span class="url" id="url">ibanking.local/login</span></div>
+      <div class="app" id="app"></div>
+    </div>
+    <aside class="aside" aria-label="About this screen">
+      <section class="panel"><h2>Try it</h2><div id="try"></div></section>
+      <section class="panel"><h2>What changes here</h2><div id="notes"></div></section>
+    </aside>
+  </div>
+  <div class="sr" aria-live="polite" id="live"></div>
+
+  <section class="sect" id="reserved">
+    <h2>Reserved tuition: yours or someone else's</h2>
+    <p>The tuition has one status, RESERVED, but what you can do depends on who holds it. The API does not say who, so the app compares it with your own transactions. No endpoint changes.</p>
+    <div class="held-grid" id="held-gallery"></div>
+    <div class="cmp plain">
+      <div class="cmp-row"><div>Situation</div><div>How the app knows</div><div>What the student gets</div></div>
+      <div class="cmp-row"><div><b>Yours, waiting for code</b></div><div>Your <code>GET /transactions</code> has a <code>PENDING_OTP</code> payment for this MSSV.</div><div>Countdown with Resume and Cancel right there, not only on Home.</div></div>
+      <div class="cmp-row"><div><b>Yours, finishing</b></div><div>Your list has a <code>PROCESSING</code> payment for this MSSV.</div><div>Told the money has left and it is being confirmed. No Cancel, because the amount is already debited.</div></div>
+      <div class="cmp-row"><div><b>Someone else's</b></div><div>The tuition is <code>RESERVED</code> and nothing in your list matches.</div><div>Told it is taken and they were not charged. No name, and no time limit, because a resend extends the hold.</div></div>
+      <div class="cmp-row"><div><b>Taken as you confirm</b></div><div><code>POST /transactions</code> answers 409 after a lookup that said Unpaid.</div><div>"No money was taken", and the card switches to the someone-else state.</div></div>
+      <div class="cmp-row"><div><b>The hold ends</b></div><div>While reserved, the page re-reads <code>GET /tuitions/{mssv}</code> every 15 seconds. "Check now" reads it at once.</div><div>Paid, or "available again", without reloading or retyping the MSSV.</div></div>
+    </div>
+  </section>
+
+  <section class="sect">
+    <h2>Today and proposed</h2>
+    <p>Each row comes from the current code and the running app. No endpoints change.</p>
+    <div class="cmp">
+      <div class="cmp-row"><div>Area</div><div>Today</div><div>Proposed</div></div>
+      <div class="cmp-row"><div><b>Confirming a payment</b></div><div>Amounts are hidden by default, so the tuition can be masked while confirming and entering the code.</div><div>Tuition stays visible through the payment. Your balance stays masked.</div></div>
+      <div class="cmp-row"><div><b>Home</b></div><div>Three equal tiles, with the main button floating above them.</div><div>One balance hero holds the main action, and the counts merge into one card.</div></div>
+      <div class="cmp-row"><div><b>Pay</b></div><div>Three cards, a half-empty payer card and the balance shown twice.</div><div>Lookup on the left, a sticky summary on the right, and payer details in one strip.</div></div>
+      <div class="cmp-row"><div><b>Disabled Confirm</b></div><div>No reason appears until a tuition is found.</div><div>A reason always sits directly above the button.</div></div>
+      <div class="cmp-row"><div><b>Phones</b></div><div>Amount and Status are pushed off-screen, and the nav wraps under the logo.</div><div>Two-line rows, a bottom tab bar and a sticky Confirm bar.</div></div>
+      <div class="cmp-row"><div><b>Status text</b></div><div>Raw values such as PENDING_OTP.</div><div>Plain words such as "Waiting for code", shown with an icon and shape as well as color.</div></div>
+      <div class="cmp-row"><div><b>Failure reason</b></div><div>Hover tooltip, so touch users never see it.</div><div>Shown in a details panel that opens from the row.</div></div>
+      <div class="cmp-row"><div><b>Closing the code box</b></div><div>The close icon asks whether to cancel the payment.</div><div>It just closes. The payment stays open until its timer ends, then shows as Cancelled with no money taken.</div></div>
+      <div class="cmp-row"><div><b>Reserved tuition</b></div><div>One message for every case: "If it is yours, resume it from Home."</div><div>Separate states for your payment and someone else's, with the right actions in place.</div></div>
+      <div class="cmp-row"><div><b>Cancel</b></div><div>The browser's window.confirm, and no focus trap or Esc in the OTP modal.</div><div>An in-app dialog that explains what happens, with full keyboard support.</div></div>
+    </div>
+  </section>
+
+  <section class="sect">
+    <h2>Implementation plan</h2>
+    <p>Four phases on the existing React and Tailwind stack, each one reviewable on its own branch.</p>
+    <div class="plan">
+      <div class="phase"><span class="n">Phase 1</span><h3>Foundations</h3><p>Tailwind <code>@theme</code> tokens, Be Vietnam Pro, <code>lucide-react</code> icons, shared Input and Dialog, and status labels. The layout stays as it is.</p></div>
+      <div class="phase"><span class="n">Phase 2</span><h3>UX and accessibility fixes</h3><p>In-app cancel dialog, focus trap and Esc, visible failure reason, idle reason on Confirm, and <code>aria-invalid</code> on fields. Worth doing even without the redesign.</p></div>
+      <div class="phase"><span class="n">Phase 3</span><h3>Layouts</h3><p>App shell, then Home, Pay, Result and History with its details panel, one branch at a time.</p></div>
+      <div class="phase"><span class="n">Phase 4</span><h3>Optional polish</h3><p>Dark mode, a Vietnamese and English switch, and a printable receipt.</p></div>
+    </div>
+  </section>
+
+  <section class="sect">
+    <h2>Decisions</h2>
+    <p>This page became the UI spec on 2026-11-05. The controls at the top remain for comparison only.</p>
+    <div class="decide">
+      <div class="decision"><b>Tuition stays visible when amounts are hidden</b><span>Adopted. Your balance stays masked, but you can see what you are paying. This replaces the rule in the old wireframes.</span></div>
+      <div class="decision"><b>Deep pine</b><span>Adopted. Every theme uses the same tokens, so this stays a small change later.</span></div>
+      <div class="decision"><b>A payment that times out shows as Cancelled</b><span>Adopted. It is stored as EXPIRED, but students see Cancelled, with "The code was not entered in time" as the reason.</span></div>
+      <div class="decision"><b>Still open: Vietnamese, English or both?</b><span>Not prototyped here. Cheaper to decide before Phase 3, because text lengths affect the layouts.</span></div>
+    </div>
+  </section>
+</main>
+
+<script>
+(function () {
+  'use strict';
+  const $app = document.getElementById('app');
+  const MASK = '•••••••• ₫';
+  const OTP_LEN = 6, OTP_TTL = 300, RESEND = 30, PAGE = 10;
+  const TIMED_OUT = 'The code was not entered in time';
+
+  // ---------- Helpers ----------
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const fmt = (n) => Number(n).toLocaleString('en-US') + ' ₫';
+  const pad = (n) => String(n).padStart(2, '0');
+  const dateTime = (t) => { const d = new Date(t); return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+  const timeOnly = (t) => { const d = new Date(t); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+  const clock = (s) => `${pad(Math.floor(s / 60))}:${pad(s % 60)}`;
+  const leftOf = (at) => Math.max(0, Math.ceil((at - Date.now()) / 1000));
+  const hexId = () => Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+  const shortId = (id) => `${id.slice(0, 4)}…${id.slice(-4)}`;
+  const announce = (t) => { document.getElementById('live').textContent = t; };
+  const IC = {
+    eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+    'eye-off': '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><path d="M3 3l18 18"/>',
+    check: '<path d="M20 6 9 17l-5-5"/>', x: '<path d="M18 6 6 18M6 6l12 12"/>',
+    clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    alert: '<circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/>',
+    arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>', right: '<path d="m9 6 6 6-6 6"/>', left: '<path d="m15 6-6 6 6 6"/>', down: '<path d="m6 9 6 6 6-6"/>',
+    home: '<path d="M3 11 12 3l9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
+    card: '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/>',
+    list: '<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
+    grad: '<path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11.5V17c3 2.5 9 2.5 12 0v-5.5"/>',
+    lock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+    mail: '<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 7 10-7"/>',
+    copy: '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/>',
+    print: '<path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="7"/>',
+    refresh: '<path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5"/>', search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
+    shield: '<path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/>',
+  };
+  const icon = (n, s = 18, w = 2) => `<svg class="icon" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[n]}</svg>`;
+
+  // ---------- Sample data ----------
+  const seedTuitions = () => ({
+    '52100001': { mssv: '52100001', name: 'Pham Minh D', term: '2025-HK1', amount: 15000000, status: 'UNPAID' },
+    '52100002': { mssv: '52100002', name: 'Hoang Thu E', term: '2025-HK1', amount: 18500000, status: 'RESERVED' },
+    '52100003': { mssv: '52100003', name: 'Vo Quoc F', term: '2025-HK1', amount: 12000000, status: 'PAID' },
+    '52100009': { mssv: '52100009', name: 'Dang Thi G', term: '2025-HK1', amount: 40000000, status: 'UNPAID' },
+    '521H0081': { mssv: '521H0081', name: 'Nguyen Hoai H', term: '2025-HK1', amount: 9500000, status: 'UNPAID' },
+    '52100006': { mssv: '52100006', name: 'Tran Gia K', term: '2025-HK1', amount: 16000000, status: 'RESERVED' },
+    '52100007': { mssv: '52100007', name: 'Ly Bao M', term: '2025-HK1', amount: 11000000, status: 'UNPAID', race: true },
+    '52100008': { mssv: '52100008', name: 'Do Anh N', term: '2025-HK1', amount: 6000000, status: 'UNPAID' },
+  });
+  const DAY = 86400000;
+  const seedTxns = () => {
+    const now = Date.now();
+    const t = (mssv, amount, status, ago, reason) => ({ id: hexId(), mssv, amount, status, reason: reason || null, createdAt: now - ago, completedAt: status === 'SUCCESS' ? now - ago + 60000 : null });
+    return [
+      { ...t('52100002', 18500000, 'PENDING_OTP', 108000), expiresAt: now + 192000 },
+      t('52100003', 12000000, 'SUCCESS', DAY + 3600000),
+      t('52100001', 15000000, 'EXPIRED', DAY + 7200000, TIMED_OUT),
+      t('52100004', 21000000, 'CANCELLED', 2 * DAY + 3600000, 'You cancelled this payment'),
+      t('52100005', 18500000, 'FAILED', 2 * DAY + 7200000, 'The payment could not be finished'),
+    ];
+  };
+  const newPay = () => ({ mssv: '', lookup: 'idle', tuition: null, agreed: false, termsOpen: false, phase: 'details', txnId: null, code: '', attempts: 3, deadline: 0, resendAt: 0, busy: null, error: null, info: null, confirmCancel: false, notice: null, submitting: false, outcome: null, wasExpired: false, cooldownDone: false });
+  const initial = () => ({
+    route: 'login', signedIn: false, visible: false, balance: 30000000, tuitions: seedTuitions(), txns: seedTxns(),
+    login: { u: 'alice', p: '', show: false, busy: false, error: null, missU: false, missP: false },
+    pay: newPay(), hist: { q: '', filter: 'all', page: 1, openId: null }, confirmHome: null, menu: false, empty: false, loading: false, copied: null,
+  });
+  let S = initial();
+  const opts = { tuitionVisible: true };
+  let opener = null, pendingFocus = null, resetScroll = false, lookupTimer = null;
+
+  const STATUS = {
+    SUCCESS: ['Successful', 'ok', 'check'], PAID: ['Paid', 'ok', 'check'],
+    PENDING_OTP: ['Waiting for code', 'progress', 'clock'], RESERVED: ['Reserved', 'progress', 'clock'], PROCESSING: ['Processing', 'progress', 'clock'],
+    // EXPIRED stays the stored status; students see a timed-out payment as Cancelled, with the reason in its details.
+    FAILED: ['Failed', 'ended', 'x'], EXPIRED: ['Cancelled', 'ended', 'x'], CANCELLED: ['Cancelled', 'ended', 'x'], UNPAID: ['Unpaid', 'neutral', null],
+  };
+  const pill = (s) => { const [l, k, ic] = STATUS[s]; return `<span class="pill ${k}">${ic ? icon(ic, 13, 2.5) : ''}${l}</span>`; };
+  // `pay`: an amount inside the payment flow, which the "show tuition" decision can keep visible.
+  const money = (v, pay) => (S.visible || (pay && opts.tuitionVisible)) ? `<span class="num">${fmt(v)}</span>` : `<span class="num" aria-label="Amount hidden">${MASK}</span>`;
+  const btn = (label, kind, act, o = {}) => `<button type="${o.submit ? 'submit' : 'button'}" class="btn ${kind}${o.block ? ' block' : ''}" ${act ? `data-act="${act}"` : ''} ${o.arg != null ? `data-arg="${esc(o.arg)}"` : ''} ${o.disabled || o.busy ? 'disabled' : ''}>${o.busy ? '<span class="spin" aria-hidden="true"></span>' : ''}${label}</button>`;
+  const eye = (cls = '') => `<button type="button" class="icon-btn ${cls}" data-act="toggleAmounts" data-key="eye${cls}" aria-pressed="${S.visible}" aria-label="${S.visible ? 'Hide amounts' : 'Show amounts'}" title="${S.visible ? 'Hide amounts' : 'Show amounts'}">${icon(S.visible ? 'eye' : 'eye-off', 20)}</button>`;
+  const txns = () => S.empty ? [] : S.txns;
+  const txnById = (id) => S.txns.find((t) => t.id === id);
+  // The API never says who holds a tuition. It is "mine" when my own GET /transactions has an active payment for that MSSV.
+  const mineFor = (mssv) => S.txns.find((t) => t.mssv === mssv && (t.status === 'PENDING_OTP' || t.status === 'PROCESSING'));
+  const emailMask = 'a****@example.com';
+
+  // ---------- Views ----------
+  const navItems = [['home', 'Home', 'home'], ['pay', 'Pay tuition', 'card'], ['history', 'History', 'list']];
+  function topbar() {
+    return `<header class="topbar"><div class="topbar-in">
+      <button type="button" class="logo" data-act="go" data-arg="home"><span class="logo-mark" aria-hidden="true">i</span>iBanking</button>
+      <nav class="nav" aria-label="Main">${navItems.map(([r, l]) => `<button type="button" data-act="go" data-arg="${r}" data-key="nav-${r}" ${S.route === r ? 'aria-current="page"' : ''}>${l}</button>`).join('')}</nav>
+      <div class="top-right">${eye()}
+        <button type="button" class="account" data-act="toggleMenu" aria-expanded="${S.menu}" aria-haspopup="true" aria-label="Account menu"><span class="avatar" aria-hidden="true">NA</span><span class="account-name">Nguyen Van A</span>${icon('down', 16)}</button>
+        ${S.menu ? `<div class="menu"><p><b>Nguyen Van A</b>alice@example.com</p><button type="button" data-act="signOut">Sign out</button></div>` : ''}
+      </div>
+    </div></header>`;
+  }
+  const tabbar = () => `<nav class="tabbar" aria-label="Main, mobile">${navItems.map(([r, l, ic]) => `<button type="button" data-act="go" data-arg="${r}" data-key="tab-${r}" ${S.route === r ? 'aria-current="page"' : ''}><span>${icon(ic, 20)}</span>${r === 'pay' ? 'Pay' : l}</button>`).join('')}</nav>`;
+
+  function loginView() {
+    const L = S.login;
+    return `<div class="login">
+      <div class="brand">
+        <div class="logo"><span class="logo-mark" aria-hidden="true">i</span>iBanking</div>
+        <div><h2>Pay tuition in three short steps</h2><ol>
+          <li><span class="dot">1</span><div><b>Find the student</b><span>Type the MSSV and we look it up</span></div></li>
+          <li><span class="dot">2</span><div><b>Check the amount</b><span>See your balance before and after</span></div></li>
+          <li><span class="dot">3</span><div><b>Confirm by email code</b><span>A 6-digit code keeps the payment yours</span></div></li>
+        </ol></div>
+        <p class="foot">${icon('shield', 16)}Your password and codes never appear in the address bar.</p>
+      </div>
+      <div class="login-side"><form class="login-form" method="post" novalidate data-form="login">
+        <div class="logo"><span class="logo-mark" aria-hidden="true">i</span>iBanking</div>
+        <div><h1 class="title" tabindex="-1" data-key="h1">Sign in</h1><p>Use your iBanking account</p></div>
+        ${L.error ? `<div class="alert bad" role="alert">${icon('alert', 16)}<span>${esc(L.error)}</span></div>` : ''}
+        <div class="field"><label for="u">Username</label><input class="input" id="u" data-key="u" data-input="loginU" autocomplete="username" value="${esc(L.u)}" ${L.missU ? 'aria-invalid="true" aria-describedby="u-err"' : ''}>${L.missU ? '<span class="err" id="u-err">Required</span>' : ''}</div>
+        <div class="field"><label for="p">Password</label><div class="input-wrap"><input class="input" id="p" data-key="p" data-input="loginP" type="${L.show ? 'text' : 'password'}" autocomplete="current-password" value="${esc(L.p)}" style="padding-right:60px" ${L.missP ? 'aria-invalid="true" aria-describedby="p-err"' : ''}><button type="button" class="input-side" data-act="toggleShow">${L.show ? 'Hide' : 'Show'}</button></div>${L.missP ? '<span class="err" id="p-err">Required</span>' : ''}</div>
+        ${btn(L.busy ? 'Signing in…' : 'Sign in', 'primary', null, { submit: true, block: true, busy: L.busy })}
+      </form></div>
+    </div>`;
+  }
+
+  const rowSub = (t, grouped) => `${grouped ? timeOnly(t.createdAt) : dateTime(t.createdAt)} · ${shortId(t.id)}`;
+  const row = (t, grouped) => `<button type="button" class="row" data-act="openTxn" data-arg="${t.id}" aria-label="MSSV ${t.mssv}, ${STATUS[t.status][0]}, open details">
+    <span class="r-main"><b>MSSV ${t.mssv}</b><small>${rowSub(t, grouped)}</small></span><span class="r-amt">${money(t.amount)}</span><span class="r-pill">${pill(t.status)}</span><span class="r-chev">${icon('right', 16)}</span></button>`;
+  const skelRows = (n) => Array.from({ length: n }, () => '<div class="skel-row"><span class="skel"></span></div>').join('');
+  const emptyTx = () => `<div class="empty"><b>No transactions yet</b><p>Payments you make will appear here.</p>${btn('Pay tuition', 'primary', 'go', { arg: 'pay' })}</div>`;
+
+  function homeView() {
+    const list = txns();
+    const ok = list.filter((t) => t.status === 'SUCCESS');
+    const ended = list.filter((t) => ['FAILED', 'EXPIRED', 'CANCELLED'].includes(t.status));
+    const pending = list.filter((t) => t.status === 'PENDING_OTP');
+    const total = ok.reduce((n, t) => n + t.amount, 0);
+    return `<div class="content">
+      <h1 class="title" tabindex="-1" data-key="h1">Welcome back, Nguyen Van A</h1>
+      <div class="home-top">
+        <section class="hero" aria-label="Balance">
+          <div class="hero-label"><span>Available balance</span>${eye('hero-eye')}</div>
+          <div><div class="hero-amt">${S.loading ? '<span class="skel" style="height:40px;width:60%;opacity:.3"></span>' : money(S.balance)}</div><p class="hero-sub">Account · alice</p></div>
+          ${btn('Pay tuition', 'on-hero', 'go', { arg: 'pay' })}
+        </section>
+        <section class="card stats" aria-label="Payment counts">
+          <div class="stat"><p>Successful payments</p><div><b>${S.loading ? '–' : ok.length}</b><small>${money(total)} total</small></div></div>
+          <div class="stat"><p>Not completed</p><div><b>${S.loading ? '–' : ended.length}</b><small>Failed or cancelled</small></div></div>
+        </section>
+      </div>
+      ${S.loading ? '' : pending.map((t) => `<section class="pending" aria-label="Payment waiting for code">
+        <span class="pending-ic">${icon('clock', 20)}</span>
+        <div class="pending-main"><b>Finish your payment: MSSV ${t.mssv} · ${money(t.amount)}</b>
+          <small>Code expires in <span class="num" data-deadline="${t.expiresAt}">${clock(leftOf(t.expiresAt))}</span>. Lost the email? Resume and press Resend.</small>
+          <div class="bar"><i data-bar="${t.expiresAt}" style="width:${leftOf(t.expiresAt) / OTP_TTL * 100}%"></i></div></div>
+        <div class="pending-acts">${btn('Cancel', 'ghost', 'askHomeCancel', { arg: t.id })}${btn('Resume', 'primary', 'resume', { arg: t.id })}</div>
+      </section>`).join('')}
+      <section class="list" aria-label="Recent transactions">
+        <div class="list-head"><h2>Recent transactions</h2>${list.length ? `<button type="button" class="view-all" data-act="go" data-arg="history">View all ${icon('arrow', 16)}</button>` : ''}</div>
+        ${S.loading ? skelRows(3) : list.length ? list.slice(0, 5).map((t) => row(t)).join('') : emptyTx()}
+      </section>
+    </div>`;
+  }
+
+  // Why Confirm is disabled, in the order the user fixes things; null = enabled.
+  function blockReason() {
+    const P = S.pay, t = P.tuition;
+    if (P.lookup === 'notfound') return { text: 'Check the MSSV and try again.' };
+    if (P.lookup === 'loading') return { text: 'Looking up this MSSV…' };
+    if (!t) return { text: 'Enter an MSSV to find the tuition.' };
+    if (t.status === 'PAID') return { text: 'This tuition is already paid.' };
+    if (t.status !== 'UNPAID') {
+      const mine = mineFor(t.mssv);
+      if (!mine) return { text: 'Someone else is paying this tuition right now.' };
+      return { text: mine.status === 'PROCESSING' ? 'This payment is already being finished.' : 'You already started this payment. Resume or cancel it first.' };
+    }
+    if (S.balance < t.amount) return { text: S.visible ? `You need ${fmt(t.amount - S.balance)} more.` : 'Your balance is lower than this tuition.', bad: true };
+    if (!P.agreed) return { text: 'Accept the terms & conditions to continue.' };
+    return null;
+  }
+  const payable = () => { const t = S.pay.tuition; return S.route === 'pay' && S.pay.phase === 'details' && t && t.status === 'UNPAID' && S.balance >= t.amount; };
+  const stepper = (n) => { const L = ['Details', 'Verify code', 'Result']; return `<ol class="stepper" aria-label="Progress">${L.map((l, i) => `${i ? '<li class="bar-l" aria-hidden="true"></li>' : ''}<li class="${i + 1 < n ? 'done' : i + 1 === n ? 'on' : ''}" ${i + 1 === n ? 'aria-current="step"' : ''}><span class="d">${i + 1 < n ? icon('check', 13, 3) : i + 1}</span>${l}</li>`).join('')}</ol><p class="step-mini">Step ${n} of 3 · ${L[n - 1]}</p>`; };
+  const terms = (id) => `<div class="sum-terms" style="display:grid;gap:8px"><label class="check"><input type="checkbox" id="${id}" data-input="agreed" data-key="${id}" ${S.pay.agreed ? 'checked' : ''}><span>I agree to the <b style="font-weight:600">terms &amp; conditions</b></span></label>
+    <details class="terms" ${S.pay.termsOpen ? 'open' : ''}><summary>Read the terms</summary><ul><li>The full tuition amount is paid in one transaction; partial payment is not possible.</li><li>The payment is confirmed with a one-time code sent to your email, valid for 5 minutes.</li><li>After it succeeds the payment cannot be reversed from this app.</li></ul></details></div>`;
+
+  // The three faces of a RESERVED tuition. `preview` draws a static copy for the comparison section.
+  function heldNotice(mine, preview) {
+    if (mine && mine.status === 'PROCESSING') {
+      return `<div class="held"><div class="held-text"><b>Your payment is being finished</b><span>The amount has left your balance and we are confirming it. This page updates by itself.</span></div>
+        <div class="held-acts">${btn('View history', 'secondary', 'go', { arg: 'history' })}</div></div>`;
+    }
+    if (mine) {
+      const left = preview ? 192 : leftOf(mine.expiresAt);
+      const attrs = preview ? '' : `data-deadline="${mine.expiresAt}"`;
+      return `<div class="held"><div class="held-text"><b>You started this payment</b><span>Code expires in <span class="num" ${attrs}>${clock(left)}</span>. Resume to enter the code, or cancel to release the tuition.</span></div>
+        <div class="bar"><i ${preview ? '' : `data-bar="${mine.expiresAt}"`} style="width:${left / OTP_TTL * 100}%"></i></div>
+        <div class="held-acts">${btn('Cancel', 'ghost', 'askHomeCancel', { arg: mine.id })}${btn('Resume', 'primary', 'resume', { arg: mine.id })}</div></div>`;
+    }
+    const P = S.pay;
+    return `<div class="held"><div class="held-text"><b>Someone else is paying this tuition</b><span>You cannot pay it right now, and you have not been charged. If their payment does not finish, it becomes available again. This page updates by itself.</span></div>
+      <div class="held-acts">${btn(!preview && P.checking ? 'Checking…' : 'Check now', 'secondary', 'checkNow', { busy: !preview && P.checking })}</div>
+      ${!preview && P.checked ? '<span class="held-check">Still reserved. Checked just now.</span>' : ''}</div>`;
+  }
+  function matchBlock(t, mine, preview) {
+    return `<div class="match"><div class="match-top"><span class="match-ic">${icon('grad', 20)}</span><div class="match-name"><b>${esc(t.name)}</b><small>MSSV ${esc(t.mssv)} · Term ${esc(t.term)}</small></div>${pill(mine ? mine.status : t.status)}</div>
+      <div class="match-due"><span>Amount due</span>${money(t.amount, true)}</div>${t.status === 'RESERVED' ? heldNotice(mine, preview) : ''}</div>`;
+  }
+
+  function payView() {
+    const P = S.pay;
+    if (P.phase === 'result') return resultView();
+    const t = P.tuition, r = blockReason();
+    const unpaid = t && t.status === 'UNPAID';
+    const after = unpaid ? S.balance - t.amount : null;
+    return `<div class="content">
+      <div class="title-row pay-head"><h1 class="title" tabindex="-1" data-key="h1">Tuition payment</h1>${stepper(P.phase === 'otp' ? 2 : 1)}</div>
+      ${P.notice ? `<div class="alert" role="status">${icon('check', 16)}<span>${esc(P.notice)}</span></div>` : ''}
+      <div class="pay-grid">
+        <div class="pay-left">
+          <section class="card pay-card" aria-label="Tuition">
+            <h2 class="card-title">Who are you paying for?</h2>
+            <div class="field"><label for="mssv">Student ID (MSSV)</label><div class="input-wrap">
+              <input class="input" id="mssv" data-key="mssv" data-input="mssv" maxlength="12" autocomplete="off" autocapitalize="characters" placeholder="e.g. 52100001 or 521H0081" value="${esc(P.mssv)}" ${P.lookup === 'notfound' ? 'aria-invalid="true" aria-describedby="mssv-err"' : 'aria-describedby="mssv-help"'} ${P.phase === 'otp' || P.submitting ? 'disabled' : ''}>
+              ${P.lookup === 'loading' ? '<span class="input-side" aria-hidden="true"><span class="spin"></span></span>' : ''}</div>
+              ${P.lookup === 'notfound' ? `<span class="err" id="mssv-err" role="alert">No tuition found for MSSV ${esc(P.mssv)}.</span>` : '<span class="help" id="mssv-help">8 characters, may include letters. We look it up as you type.</span>'}
+            </div>
+            ${P.lookup === 'loading' ? '<div class="match"><span class="skel" style="width:60%"></span><span class="skel" style="width:40%"></span><span class="skel"></span></div>' : ''}
+            ${t ? matchBlock(t, t.status === 'RESERVED' ? mineFor(t.mssv) : null) : ''}
+          </section>
+          <section class="card" aria-label="Payer">
+            <p class="from-title">${icon('lock', 16)}Paying from your account</p>
+            <dl class="from-grid"><div><dt>Full name</dt><dd>Nguyen Van A</dd></div><div><dt>Phone number</dt><dd>0900 000 001</dd></div><div><dt>Email</dt><dd>alice@example.com</dd></div></dl>
+          </section>
+        </div>
+        <section class="card summary" aria-label="Payment summary">
+          <h2 class="card-title">Payment summary</h2>
+          <div class="sum-rows">
+            <div class="sum-row"><span>Available balance${eye('sum-eye')}</span>${money(S.balance)}</div>
+            <div class="sum-row"><span>Tuition</span>${unpaid ? `<span>− ${money(t.amount, true)}</span>` : '<span>—</span>'}</div>
+            <div class="sum-row total"><span>Balance after</span><span class="${after < 0 ? 'neg' : ''}">${after == null ? '—' : after < 0 && !S.visible ? 'Not enough' : after < 0 ? '− ' + fmt(-after) : money(after)}</span></div>
+          </div>
+          ${terms('agree')}
+          <div class="sum-actions">
+            ${P.race ? `<div class="alert bad" role="alert">${icon('alert', 16)}<span>Someone else started paying this tuition just before you. No money was taken.</span></div>` : ''}
+            ${r ? `<p class="reason ${r.bad ? 'bad' : ''}">${icon('alert', 16)}<span>${esc(r.text)}</span></p>` : `<p class="next-note">${icon('mail', 16)}<span>Next, we email a 6-digit code to ${emailMask}.</span></p>`}
+            ${btn('Confirm and send code', 'primary', 'confirmPay', { block: true, disabled: !!r, busy: P.submitting })}
+            ${btn('Clear form', 'ghost', 'clearPay', { block: true })}
+          </div>
+        </section>
+      </div>
+    </div>`;
+  }
+  function stickyBar() {
+    const t = S.pay.tuition; if (!payable()) return '';
+    const r = blockReason();
+    return `<div class="sticky-bar">${terms('agree-m')}${r ? `<p class="reason">${icon('alert', 16)}<span>${esc(r.text)}</span></p>` : ''}${btn(`Confirm · ${(S.visible || opts.tuitionVisible) ? fmt(t.amount) : MASK}`, 'primary', 'confirmPay', { block: true, disabled: !!r, busy: S.pay.submitting })}</div>`;
+  }
+
+  function otpDialog() {
+    const P = S.pay, t = txnById(P.txnId), tu = P.tuition;
+    if (P.confirmCancel) {
+      return `<div class="scrim"><div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="cc-t" aria-describedby="cc-d">
+        <h2 id="cc-t" tabindex="-1" data-key="dlg">Cancel this payment?</h2><p id="cc-d">No money has been taken. The tuition is released so it can be paid again.</p>
+        <div class="recap"><span>MSSV ${t.mssv}${tu ? ` · ${esc(tu.name)}` : ''}</span><b>${money(t.amount, true)}</b></div>
+        <div class="dialog-acts">${btn('Keep paying', 'secondary', 'keepPaying')}${btn('Yes, cancel', 'primary', 'doCancel')}</div>
+      </div></div>`;
+    }
+    const left = leftOf(P.deadline), expired = left === 0, cd = leftOf(P.resendAt), busy = !!P.busy;
+    const digits = Array.from({ length: OTP_LEN }, (_, i) => P.code[i] || '');
+    return `<div class="scrim"><form class="dialog" role="dialog" aria-modal="true" aria-labelledby="otp-t" method="post" data-form="otp" novalidate>
+      ${stepper(2)}
+      <div class="dialog-head"><h2 id="otp-t" tabindex="-1">Enter verification code</h2><button type="button" class="icon-btn" data-act="closeOtp" aria-label="Close. The payment stays open until the code expires" title="Close" ${busy ? 'disabled' : ''}>${icon('x', 20)}</button></div>
+      <p style="color:var(--ink2)">We sent a 6-digit code to ${emailMask}</p>
+      <div class="recap"><span>MSSV ${t.mssv}${tu ? ` · ${esc(tu.name)}` : ''}</span><b>${money(t.amount, true)}</b></div>
+      <div class="otp">${digits.map((d, i) => `<input data-key="otp-${i}" data-otp="${i}" value="${d}" inputmode="numeric" maxlength="${OTP_LEN}" autocomplete="${i === 0 ? 'one-time-code' : 'off'}" aria-label="Digit ${i + 1}" ${expired || busy ? 'disabled' : ''}>`).join('')}</div>
+      <div style="display:grid;gap:4px">
+        <div class="bar ${left > 60 ? 'calm' : ''}"><i data-bar="${P.deadline}" style="width:${left / OTP_TTL * 100}%"></i></div>
+        <div class="otp-meta">${expired ? '<span style="color:var(--bad);font-weight:500">Code expired. Send a new one.</span>' : `<span>Code expires in <span class="num" data-deadline="${P.deadline}">${clock(left)}</span></span>`}
+          <button type="button" class="resend" data-act="resend" ${cd > 0 || busy ? 'disabled' : ''}>${P.busy === 'resend' ? 'Sending…' : cd > 0 ? `Resend code (<span class="num" data-cooldown="${P.resendAt}">${clock(cd).replace(/^0/, '')}</span>)` : 'Resend code'}</button></div>
+      </div>
+      ${P.error ? `<div class="alert bad" role="alert">${icon('alert', 16)}<span>${esc(P.error)}</span></div>` : ''}
+      ${P.info && !P.error ? `<div class="alert" role="status">${icon('mail', 16)}<span>${esc(P.info)}</span></div>` : ''}
+      <div class="dialog-acts">${btn('Cancel payment', 'ghost', 'askCancel', { disabled: busy })}${btn(P.busy === 'verify' ? 'Verifying…' : 'Verify and pay', 'primary', null, { submit: true, disabled: P.code.length !== OTP_LEN || expired, busy: P.busy === 'verify' })}</div>
+    </form></div>`;
+  }
+
+  const copyBtn = (id) => `<button type="button" class="copy" data-act="copyId" data-arg="${id}" aria-label="Copy transaction ID"><span class="mono">${shortId(id)}</span>${S.copied === id ? icon('check', 14) : icon('copy', 14)}</button>`;
+  function resultView() {
+    const P = S.pay, o = P.outcome, t = txnById(o.txnId), tu = P.tuition;
+    const v = t.status === 'SUCCESS' ? 'success' : t.status === 'PROCESSING' ? 'processing' : 'failed';
+    const H = {
+      success: ['ok', 'check', 'Payment successful', 'A receipt was sent to your email.'],
+      processing: ['progress', 'clock', 'Payment is being finished', 'This can take a moment, and we keep checking for you.'],
+      failed: ['bad', 'x', 'Payment not completed', 'No money was taken from your account.'],
+    }[v];
+    const student = `${t.mssv}${tu ? ` · ${esc(tu.name)}` : ''}`;
+    const acts = v === 'success' ? btn('Back to home', 'secondary', 'go', { arg: 'home' }) + btn('New payment', 'primary', 'clearPay')
+      : v === 'processing' ? btn('View history', 'secondary', 'go', { arg: 'history' }) + btn('New payment', 'primary', 'clearPay')
+      : btn('Back to form', 'secondary', 'clearPay') + btn('Try again', 'primary', 'tryAgain');
+    return `<div class="content">
+      <div class="title-row pay-head"><h1 class="title" tabindex="-1" data-key="h1">Tuition payment</h1>${stepper(3)}</div>
+      <section class="card receipt" aria-label="Result">
+        <div class="res-head" role="status"><span class="res-ic ${H[0]}">${icon(H[1], 26, 2.5)}</span><h2>${H[2]}</h2><p>${H[3]}</p></div>
+        <div class="rule"></div>
+        <dl class="kv">
+          ${v === 'failed' ? `<div><dt>Reason</dt><dd>${esc(t.reason)}</dd></div>` : `<div><dt>Transaction ID</dt><dd>${copyBtn(t.id)}</dd></div>`}
+          <div><dt>Student</dt><dd>${student}</dd></div>
+          ${tu ? `<div><dt>Term</dt><dd>${esc(tu.term)}</dd></div>` : ''}
+          <div><dt>Amount</dt><dd style="font-weight:700">${money(t.amount, true)}</dd></div>
+          ${v === 'success' ? `<div><dt>New balance</dt><dd>${money(S.balance)}</dd></div><div><dt>Completed</dt><dd>${dateTime(t.completedAt)}</dd></div>` : `<div><dt>Status</dt><dd>${pill(t.status)}</dd></div>`}
+        </dl>
+        ${v === 'success' ? `<button type="button" class="print" data-act="printReceipt">${icon('print', 16)}Print receipt</button>` : ''}
+        <div class="res-acts">${acts}</div>
+      </section>
+    </div>`;
+  }
+
+  const FILTERS = [['all', 'All', null], ['ok', 'Successful', ['SUCCESS']], ['progress', 'In progress', ['PENDING_OTP', 'PROCESSING']], ['ended', 'Not completed', ['FAILED', 'EXPIRED', 'CANCELLED']]];
+  const dayLabel = (t) => { const d = new Date(t), n = new Date(); if (d.toDateString() === n.toDateString()) return 'TODAY'; const y = new Date(n - DAY); if (d.toDateString() === y.toDateString()) return 'YESTERDAY'; return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }).toUpperCase(); };
+  function historyView() {
+    const H = S.hist, all = txns();
+    const statuses = FILTERS.find((f) => f[0] === H.filter)[2];
+    const q = H.q.trim().toUpperCase();
+    const list = all.filter((t) => (!q || t.mssv.includes(q)) && (!statuses || statuses.includes(t.status)));
+    const pages = Math.max(1, Math.ceil(list.length / PAGE)), cur = Math.min(H.page, pages);
+    const rows = list.slice((cur - 1) * PAGE, cur * PAGE);
+    let last = null, body = '';
+    rows.forEach((t) => { const l = dayLabel(t.createdAt); if (l !== last) { body += `<div class="group">${l}</div>`; last = l; } body += row(t, true); });
+    return `<div class="content">
+      <div class="title-row"><h1 class="title" tabindex="-1" data-key="h1">Transaction history</h1><button type="button" class="icon-btn" data-act="refresh" aria-label="Refresh" title="Refresh" style="border:1px solid var(--line2);background:var(--card)">${icon('refresh', 18)}</button></div>
+      <section class="list" aria-label="Transactions">
+      ${!S.loading && !all.length ? emptyTx() : `
+        <div class="toolbar">
+          <div class="search">${icon('search', 16)}<input data-key="q" data-input="histQ" value="${esc(H.q)}" placeholder="Search by MSSV" aria-label="Search by MSSV" autocomplete="off"></div>
+          <div class="filter" role="group" aria-label="Filter by status">${FILTERS.map(([k, l]) => `<button type="button" data-act="setFilter" data-arg="${k}" aria-pressed="${H.filter === k}">${l}</button>`).join('')}</div>
+        </div>
+        ${S.loading ? skelRows(4) : body || '<div class="empty"><b>No transactions match</b><p style="margin:0">Try another MSSV or status.</p></div>'}
+        ${!S.loading && list.length ? `<div class="pager"><span>Showing ${(cur - 1) * PAGE + 1}–${Math.min(cur * PAGE, list.length)} of ${list.length}</span><div><button type="button" data-act="page" data-arg="${cur - 1}" aria-label="Previous page" ${cur === 1 ? 'disabled' : ''}>${icon('left', 16)}</button><span>${cur} / ${pages}</span><button type="button" data-act="page" data-arg="${cur + 1}" aria-label="Next page" ${cur === pages ? 'disabled' : ''}>${icon('right', 16)}</button></div></div>` : ''}`}
+      </section>
+    </div>`;
+  }
+
+  function drawer() {
+    const t = txnById(S.hist.openId); if (!t) return '';
+    const ended = ['FAILED', 'EXPIRED', 'CANCELLED'].includes(t.status);
+    return `<div class="drawer-scrim" data-act="closeTxn" data-self="1"></div><div class="drawer" role="dialog" aria-modal="true" aria-labelledby="d-t">
+      <div class="dialog-head"><h2 id="d-t" tabindex="-1" data-key="dlg">Transaction details</h2><button type="button" class="icon-btn" data-act="closeTxn" aria-label="Close details">${icon('x', 20)}</button></div>
+      <div>${pill(t.status)}</div>
+      <div class="drawer-amt">${money(t.amount)}</div>
+      ${t.reason && ended ? `<div class="why"><b>Why it did not complete</b><span>${esc(t.reason)}. No money was taken from your account.</span></div>` : ''}
+      <dl class="kv"><div><dt>MSSV</dt><dd>${t.mssv}</dd></div><div><dt>Created</dt><dd>${dateTime(t.createdAt)}</dd></div>${t.completedAt ? `<div><dt>Completed</dt><dd>${dateTime(t.completedAt)}</dd></div>` : ''}<div><dt>Transaction ID</dt><dd>${copyBtn(t.id)}</dd></div></dl>
+      ${t.status === 'PENDING_OTP' ? btn('Resume payment', 'primary', 'resume', { arg: t.id, block: true }) : ended ? btn('Pay this MSSV again', 'primary', 'payAgain', { arg: t.mssv, block: true }) : ''}
+    </div>`;
+  }
+  function homeConfirm() {
+    const t = txnById(S.confirmHome); if (!t) return '';
+    return `<div class="scrim"><div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="hc-t" aria-describedby="hc-d">
+      <h2 id="hc-t" tabindex="-1" data-key="dlg">Cancel this payment?</h2><p id="hc-d">No money has been taken. The tuition is released so it can be paid again.</p>
+      <div class="recap"><span>MSSV ${t.mssv}</span><b>${money(t.amount)}</b></div>
+      <div class="dialog-acts">${btn('Keep it', 'secondary', 'keepHome')}${btn('Yes, cancel', 'primary', 'doHomeCancel')}</div></div></div>`;
+  }
+
+  function view() {
+    if (S.route === 'login') return `<div class="shell">${loginView()}</div>`;
+    const overlay = (S.route === 'pay' && S.pay.phase === 'otp') ? otpDialog() : S.confirmHome ? homeConfirm() : S.hist.openId ? drawer() : '';
+    const page = S.route === 'home' ? homeView() : S.route === 'pay' ? payView() : historyView();
+    return `<div class="shell ${payable() ? 'is-payable' : ''}" ${overlay ? 'inert' : ''}>${topbar()}<main class="app-main">${page}</main>${stickyBar()}${tabbar()}</div>${overlay}`;
+  }
+
+  // ---------- Render ----------
+  const keyOf = (el) => el.dataset.key || (el.dataset.act ? `${el.dataset.act}|${el.dataset.arg || ''}` : null);
+  function render() {
+    const a = document.activeElement;
+    const inApp = a && $app.contains(a);
+    const key = inApp ? keyOf(a) : null;
+    let sel = null;
+    if (inApp && a.tagName === 'INPUT' && a.type !== 'checkbox') { try { sel = a.selectionStart; } catch (e) { sel = null; } }
+    const old = $app.querySelector('.app-main');
+    const top = old ? old.scrollTop : 0;
+    $app.innerHTML = view();
+    const main = $app.querySelector('.app-main');
+    if (main) main.scrollTop = resetScroll ? 0 : top;
+    resetScroll = false;
+    const want = pendingFocus || key;
+    pendingFocus = null;
+    if (want) {
+      const el = [...$app.querySelectorAll('[data-key],[data-act]')].find((n) => keyOf(n) === want && !n.disabled);
+      if (el) { el.focus(); if (sel != null && el.setSelectionRange && el.dataset.otp == null) { try { el.setSelectionRange(sel, sel); } catch (e) { /* not a text field */ } } }
+    }
+    renderSide();
+  }
+
+  // ---------- Side panel ----------
+  const NOTES = {
+    login: ['Login', [['New', 'A short panel explains the flow to first-time students. It is hidden on phones.'], ['Kept', 'Inline errors, 401 and 429 messages, and Show / Hide password.']]],
+    home: ['Home', [['Balance hero', 'The balance leads the page and holds the main action, replacing three equal tiles.'], ['Pending payment', 'A clear call to action with a visible expiry bar.'], ['Rows, not a table', 'Plain status words, and everything stays visible on phones. Click a row for details.']]],
+    pay: ['Tuition payment', [['One job on the left', 'MSSV is the only input, and the match reads as a person rather than rows of dashes.'], ['Sticky summary', 'Owns the decision and removes the duplicate balance.'], ['Always a reason', 'Confirm is never disabled without saying why.'], ['Tuition stays visible', 'Your balance stays masked, but you can see what you are paying.'], ['Reserved, yours or not', 'Your own payment offers Resume and Cancel. Someone else\'s explains the wait and never names them.']]],
+    otp: ['OTP verification', [['Kept', '6 boxes, paste, auto-submit, no backdrop close, and the bottom sheet on phones.'], ['Expiry bar', 'Time left reads at a glance.'], ['Close is not cancel', 'The close icon and Esc only close the box. The payment stays open until its timer ends, and you can resume it from Pay or Home.'], ['Better cancel', 'Cancel payment asks first in an in-app dialog, which replaces window.confirm.'], ['Keyboard', 'Focus stays inside the box and returns to Resume after closing.']]],
+    result: ['Result', [['Three outcomes', 'Includes PROCESSING, which the code has but the current spec does not.'], ['Receipt tools', 'Copy the ID or print the receipt, with no backend change.']]],
+    history: ['Transaction history', [['Plain-language filters', 'Chips replace the raw status dropdown. Filtering stays in the browser.'], ['Grouped by day', 'Date and ID stop competing for space.'], ['Details panel', 'The failure reason moves out of a hover-only tooltip.']]],
+  };
+  const tryBtn = (label, act, arg, note) => `<button type="button" class="try" data-demo="${act}" data-arg="${esc(arg ?? '')}">${label}${note ? `<small>${note}</small>` : ''}</button>`;
+  function renderSide() {
+    const r = S.route;
+    const key = r === 'pay' && S.pay.phase === 'otp' ? 'otp' : r === 'pay' && S.pay.phase === 'result' ? 'result' : r;
+    const [name, items] = NOTES[key];
+    document.getElementById('notes').innerHTML = `<p class="screen-name">${name}</p>${items.map(([a, b]) => `<div class="change"><b>${a}</b><span>${b}</span></div>`).join('')}`;
+    let html = '';
+    if (key === 'login') html = `<div class="chips">${tryBtn('Sign in as alice', 'signIn')}${tryBtn('Show the error', 'badLogin')}</div><p class="panel-hint">Any password works here, and the word "wrong" shows the error.</p>`;
+    else if (key === 'pay') {
+      const cur = S.pay.tuition, other = cur && cur.status === 'RESERVED' && !mineFor(cur.mssv);
+      html = `<div class="chips">${tryBtn('52100001', 'mssv', '52100001', 'ready')}${tryBtn('52100009', 'mssv', '52100009', 'not enough')}${tryBtn('52100003', 'mssv', '52100003', 'paid')}${tryBtn('52199999', 'mssv', '52199999', 'not found')}</div>
+        <p class="panel-hint" style="font-weight:600;color:var(--ink2);margin:12px 0 6px">Reserved</p>
+        <div class="chips">${tryBtn('By you, waiting for code', 'heldByMe')}${tryBtn('By you, finishing', 'heldByMeFinishing')}${tryBtn('By someone else', 'heldByOther')}${tryBtn('Taken as you confirm', 'takenWhileConfirming')}</div>
+        ${cur && mineFor(cur.mssv) && mineFor(cur.mssv).status === 'PENDING_OTP' ? `<p class="panel-hint" style="font-weight:600;color:var(--ink2);margin:12px 0 6px">If you do nothing</p><div class="chips">${tryBtn('Let the timer run out', 'timerEnds')}</div>` : ''}
+        ${other ? `<p class="panel-hint" style="font-weight:600;color:var(--ink2);margin:12px 0 6px">What the other payer does next</p><div class="chips">${tryBtn('They finish paying', 'otherFinished')}${tryBtn('They give up', 'otherGaveUp')}</div>` : ''}
+        <p class="panel-hint">Tick the terms, then confirm to get the code step.</p>`;
+    }
+    else if (key === 'otp') html = `<div class="chips">${tryBtn('123456', 'code', '123456', 'success')}${tryBtn('222222', 'code', '222222', 'processing')}${tryBtn('000000', 'code', '000000', 'timed out')}${tryBtn('111111', 'code', '111111', 'wrong')}${tryBtn('Run out of time', 'expireNow')}</div><p class="panel-hint">Or type a code yourself. The close icon or Esc closes the box and keeps the payment open. Cancel payment ends it now.</p>`;
+    else if (key === 'result') html = `<div class="chips">${tryBtn('Start a new payment', 'newPay')}</div>`;
+    else html = `<div class="chips">${tryBtn(S.empty ? 'Show sample data' : 'New user, no data', 'toggleEmpty')}${tryBtn('Show loading', 'showLoading')}${key === 'home' ? tryBtn('Open Pay', 'goto', 'pay') : ''}${key === 'home' && !S.txns.some((t) => t.status === 'PENDING_OTP') ? tryBtn('Add a payment waiting for code', 'pendingHome') : ''}</div><p class="panel-hint">Press the eye icon to show or hide amounts.</p>`;
+    document.getElementById('try').innerHTML = html;
+    document.getElementById('url').textContent = 'ibanking.local/' + r;
+    renderHeldGallery();
+  }
+  function renderHeldGallery() {
+    const yours = { mssv: '52100002', name: 'Hoang Thu E', term: '2025-HK1', amount: 18500000, status: 'RESERVED' };
+    const other = { mssv: '52100006', name: 'Tran Gia K', term: '2025-HK1', amount: 16000000, status: 'RESERVED' };
+    const finishing = { mssv: '52100008', name: 'Do Anh N', term: '2025-HK1', amount: 6000000, status: 'RESERVED' };
+    const card = (title, t, mine, reason) => `<div class="held-card"><h3>${title}</h3><div inert style="display:grid;gap:12px">${matchBlock(t, mine, true)}<p class="reason">${icon('alert', 16)}<span>${reason}</span></p>${btn('Confirm and send code', 'primary', null, { block: true, disabled: true })}</div></div>`;
+    document.getElementById('held-gallery').innerHTML =
+      card('Reserved by you, waiting for code', yours, { status: 'PENDING_OTP', id: 'preview' }, 'You already started this payment. Resume or cancel it first.') +
+      card('Reserved by you, finishing', finishing, { status: 'PROCESSING', id: 'preview' }, 'This payment is already being finished.') +
+      card('Reserved by someone else', other, null, 'Someone else is paying this tuition right now.');
+  }
+
+  // ---------- Payment logic (mirrors TuitionPaymentPage and OtpModal) ----------
+  function setMssv(raw) {
+    const P = S.pay;
+    P.mssv = raw.replace(/\s/g, '').toUpperCase().slice(0, 12);
+    P.notice = null; P.tuition = null; P.lookup = 'idle'; P.race = false; P.checked = false;
+    clearTimeout(lookupTimer);
+    if (P.mssv.length >= 8) {
+      const asked = P.mssv;
+      lookupTimer = setTimeout(() => {
+        if (S.pay.mssv !== asked) return;
+        S.pay.lookup = 'loading'; render();
+        lookupTimer = setTimeout(() => {
+          if (S.pay.mssv !== asked) return;
+          const t = S.tuitions[asked];
+          S.pay.tuition = t || null; S.pay.lookup = t ? 'ok' : 'notfound';
+          announce(t ? `Found ${t.name}` : `No tuition found for MSSV ${asked}`);
+          render();
+        }, 350);
+      }, 400);
+    }
+    render();
+  }
+  function finish(status, reason) {
+    const P = S.pay, t = txnById(P.txnId);
+    const tu = S.tuitions[t.mssv];
+    const wasProcessing = t.status === 'PROCESSING';
+    t.status = status; t.reason = reason || null; delete t.expiresAt;
+    if (status === 'SUCCESS' || status === 'PROCESSING') {
+      if (!wasProcessing) S.balance -= t.amount;
+      if (tu) tu.status = status === 'SUCCESS' ? 'PAID' : 'RESERVED';
+      if (status === 'SUCCESS') t.completedAt = Date.now();
+    } else if (tu) tu.status = 'UNPAID';
+    P.phase = 'result'; P.outcome = { txnId: t.id }; P.busy = null; P.error = null; P.confirmCancel = false;
+    S.route = 'pay'; resetScroll = true; pendingFocus = 'h1';
+    announce(status === 'SUCCESS' ? 'Payment successful' : status === 'PROCESSING' ? 'Payment is being finished' : 'Payment not completed');
+    render();
+  }
+  function verify() {
+    const P = S.pay;
+    if (P.code.length !== OTP_LEN || P.busy || leftOf(P.deadline) === 0) return;
+    const code = P.code, id = P.txnId;
+    P.busy = 'verify'; P.error = null; P.info = null; render();
+    setTimeout(() => {
+      if (S.pay.txnId !== id) return;
+      if (code === '123456') return finish('SUCCESS');
+      if (code === '000000') return finish('EXPIRED', TIMED_OUT);
+      if (code === '222222') {
+        finish('PROCESSING');
+        // Stands in for the app's status polling: the payment settles a few seconds later.
+        setTimeout(() => {
+          const t = txnById(id);
+          if (!t || t.status !== 'PROCESSING') return;
+          if (S.pay.txnId === id && S.pay.phase === 'result') return finish('SUCCESS');
+          const tu = S.tuitions[t.mssv];
+          t.status = 'SUCCESS'; t.completedAt = Date.now(); if (tu) tu.status = 'PAID';
+          render();
+        }, 4000);
+        return;
+      }
+      P.attempts -= 1; P.busy = null; P.code = '';
+      if (P.attempts <= 0) return finish('FAILED', 'Too many incorrect codes');
+      P.error = `Incorrect code. ${P.attempts} attempt${P.attempts === 1 ? '' : 's'} left.`;
+      pendingFocus = 'otp-0'; render();
+    }, 600);
+  }
+  function setOtp(i, raw) {
+    const P = S.pay, typed = raw.replace(/\D/g, '');
+    if (!typed) return;
+    if (typed.length >= OTP_LEN) { P.code = typed.slice(0, OTP_LEN); pendingFocus = `otp-${OTP_LEN - 1}`; render(); return verify(); }
+    const arr = Array.from({ length: OTP_LEN }, (_, n) => P.code[n] || '');
+    arr[i] = typed.slice(-1);
+    P.code = arr.join('');
+    pendingFocus = `otp-${Math.min(i + 1, OTP_LEN - 1)}`;
+    render();
+    if (i === OTP_LEN - 1 && P.code.length === OTP_LEN) verify();
+  }
+
+  const actions = {
+    go(r) {
+      S.menu = false; S.hist.openId = null;
+      if (S.route === 'pay' && S.pay.phase === 'result' ) S.pay = newPay();
+      S.route = r; resetScroll = true; pendingFocus = 'h1'; render();
+    },
+    toggleAmounts() { S.visible = !S.visible; render(); },
+    toggleMenu() { S.menu = !S.menu; render(); },
+    signOut() { const keep = S.visible; S = initial(); S.visible = keep; pendingFocus = 'h1'; render(); },
+    toggleShow() { S.login.show = !S.login.show; render(); },
+    openTxn(id, el) { opener = keyOf(el); S.hist.openId = id; S.copied = null; pendingFocus = 'dlg'; render(); },
+    closeTxn() { S.hist.openId = null; pendingFocus = opener; render(); },
+    askHomeCancel(id, el) { opener = keyOf(el); S.confirmHome = id; pendingFocus = 'dlg'; render(); },
+    keepHome() { S.confirmHome = null; pendingFocus = opener; render(); },
+    doHomeCancel() {
+      const t = txnById(S.confirmHome), tu = S.tuitions[t.mssv];
+      t.status = 'CANCELLED'; t.reason = 'You cancelled this payment'; delete t.expiresAt; if (tu) tu.status = 'UNPAID';
+      S.confirmHome = null; pendingFocus = 'h1'; announce('Payment cancelled. No money was taken.'); render();
+    },
+    resume(id) {
+      const t = txnById(id); if (!t || t.status !== 'PENDING_OTP') return;
+      S.hist.openId = null;
+      const P = newPay();
+      P.mssv = t.mssv; P.tuition = S.tuitions[t.mssv] || null; P.lookup = P.tuition ? 'ok' : 'idle'; P.phase = 'otp'; P.txnId = id; P.agreed = true; P.attempts = t.attemptsLeft ?? 3;
+      P.deadline = t.expiresAt; P.resendAt = Date.now() + Math.max(0, RESEND - (OTP_TTL - leftOf(t.expiresAt))) * 1000;
+      S.pay = P; S.route = 'pay'; resetScroll = true; pendingFocus = 'otp-0'; render();
+    },
+    confirmPay() {
+      const P = S.pay, tu = P.tuition;
+      if (blockReason() || P.submitting) return;
+      P.submitting = true; render();
+      setTimeout(() => {
+        // POST /transactions answered 409: another payer reserved it after our lookup. Nothing was created or charged.
+        if (tu.race) {
+          tu.status = 'RESERVED'; tu.race = false;
+          Object.assign(P, { submitting: false, agreed: false, race: true });
+          announce('Someone else started paying this tuition just before you. No money was taken.');
+          return render();
+        }
+        const now = Date.now();
+        const txn = { id: hexId(), mssv: tu.mssv, amount: tu.amount, status: 'PENDING_OTP', reason: null, createdAt: now, completedAt: null, expiresAt: now + OTP_TTL * 1000 };
+        S.txns.unshift(txn); tu.status = 'RESERVED';
+        Object.assign(P, { submitting: false, phase: 'otp', txnId: txn.id, code: '', attempts: 3, deadline: txn.expiresAt, resendAt: now + RESEND * 1000, error: null, info: null, confirmCancel: false, wasExpired: false, cooldownDone: false });
+        pendingFocus = 'otp-0'; announce('Verification code sent'); render();
+      }, 500);
+    },
+    checkNow() {
+      const P = S.pay;
+      P.checking = true; P.checked = false; render();
+      setTimeout(() => { P.checking = false; P.checked = true; announce('Still reserved'); render(); }, 400);
+    },
+    clearPay() { clearTimeout(lookupTimer); S.pay = newPay(); pendingFocus = 'mssv'; render(); },
+    tryAgain() { const m = S.pay.mssv; S.pay = newPay(); S.pay.mssv = m; S.pay.tuition = S.tuitions[m] || null; S.pay.lookup = S.pay.tuition ? 'ok' : 'idle'; pendingFocus = 'mssv'; render(); },
+    payAgain(m) { S.hist.openId = null; S.pay = newPay(); S.pay.mssv = m; S.pay.tuition = S.tuitions[m] || null; S.pay.lookup = S.pay.tuition ? 'ok' : 'notfound'; S.route = 'pay'; resetScroll = true; pendingFocus = 'mssv'; render(); },
+    // Closing is not cancelling: the payment stays PENDING_OTP until its timer ends, then expiry_job marks it EXPIRED.
+    closeOtp() {
+      const P = S.pay, t = txnById(P.txnId);
+      t.attemptsLeft = P.attempts;
+      Object.assign(P, { phase: 'details', txnId: null, code: '', agreed: false, error: null, info: null, confirmCancel: false, notice: 'Your payment is still open. Resume it before the code expires. If you do nothing, it ends by itself and no money is taken.' });
+      pendingFocus = `resume|${t.id}`; announce('Closed. The payment is still open.'); render();
+    },
+    askCancel() { S.pay.confirmCancel = true; pendingFocus = 'dlg'; render(); },
+    keepPaying() { S.pay.confirmCancel = false; pendingFocus = `otp-${Math.min(S.pay.code.length, OTP_LEN - 1)}`; render(); },
+    doCancel() {
+      const P = S.pay, t = txnById(P.txnId), tu = S.tuitions[t.mssv];
+      t.status = 'CANCELLED'; t.reason = 'You cancelled this payment'; delete t.expiresAt; if (tu) tu.status = 'UNPAID';
+      Object.assign(P, { phase: 'details', txnId: null, code: '', confirmCancel: false, agreed: false, error: null, info: null, notice: 'Payment cancelled. No money was taken from your account.' });
+      pendingFocus = 'mssv'; render();
+    },
+    resend() {
+      const P = S.pay, id = P.txnId;
+      P.busy = 'resend'; P.error = null; P.info = null; render();
+      setTimeout(() => {
+        if (S.pay.txnId !== id) return;
+        const now = Date.now(), t = txnById(id);
+        t.expiresAt = now + OTP_TTL * 1000;
+        Object.assign(P, { busy: null, deadline: t.expiresAt, resendAt: now + RESEND * 1000, code: '', info: 'A new code was sent. The previous code no longer works.', wasExpired: false, cooldownDone: false });
+        pendingFocus = 'otp-0'; render();
+      }, 500);
+    },
+    copyId(id) { try { navigator.clipboard && navigator.clipboard.writeText(id).catch(() => {}); } catch (e) { /* clipboard blocked */ } S.copied = id; announce('Transaction ID copied'); render(); },
+    printReceipt() { window.print(); },
+    setFilter(k) { S.hist.filter = k; S.hist.page = 1; render(); },
+    page(n) { S.hist.page = Number(n); render(); },
+    refresh() { demos.showLoading(); },
+  };
+
+  // Controls in the side panel that drive the prototype.
+  const demos = {
+    signIn() { Object.assign(S.login, { u: 'alice', p: 'demo', error: null }); submitLogin(); },
+    badLogin() { Object.assign(S.login, { u: 'alice', p: 'wrong', error: null }); submitLogin(); },
+    mssv(m) { S.pay.phase === 'details' && setMssv(m); },
+    // Reserved scenarios rebuild their sample data, so they work however long the demo has been open.
+    heldByMe() { ensurePending(); demos.mssv('52100002'); },
+    heldByMeFinishing() {
+      const tu = S.tuitions['52100008'];
+      if (!mineFor(tu.mssv)) {
+        const txn = { id: hexId(), mssv: tu.mssv, amount: tu.amount, status: 'PROCESSING', reason: null, createdAt: Date.now(), completedAt: null };
+        S.txns.unshift(txn); tu.status = 'RESERVED';
+        if (S.balance >= tu.amount) S.balance -= tu.amount;
+        setTimeout(() => { txn.status = 'SUCCESS'; txn.completedAt = Date.now(); tu.status = 'PAID'; announce('Payment successful'); render(); }, 12000);
+      }
+      demos.mssv(tu.mssv);
+    },
+    heldByOther() { S.tuitions['52100006'].status = 'RESERVED'; demos.mssv('52100006'); },
+    takenWhileConfirming() { Object.assign(S.tuitions['52100007'], { status: 'UNPAID', race: true }); demos.mssv('52100007'); },
+    otherFinished() { S.pay.tuition.status = 'PAID'; Object.assign(S.pay, { race: false, checked: false }); announce('This tuition is now paid'); render(); },
+    otherGaveUp() { S.pay.tuition.status = 'UNPAID'; Object.assign(S.pay, { race: false, checked: false, notice: 'This tuition is available again. You can pay it now.' }); render(); },
+    pendingHome() { ensurePending(); render(); },
+    timerEnds() { const mine = S.pay.tuition && mineFor(S.pay.tuition.mssv); if (mine) mine.expiresAt = Date.now(); },
+    code(c) { if (S.pay.phase === 'otp' && !S.pay.confirmCancel) { S.pay.code = c; verify(); } },
+    expireNow() { const P = S.pay; if (P.phase === 'otp') { const t = txnById(P.txnId); P.deadline = Date.now(); t.expiresAt = P.deadline + 1000; P.resendAt = Date.now(); P.code = ''; P.error = null; P.confirmCancel = false; render(); } },
+    newPay() { S.pay = newPay(); pendingFocus = 'mssv'; render(); },
+    toggleEmpty() { S.empty = !S.empty; render(); },
+    showLoading() { S.loading = true; render(); setTimeout(() => { S.loading = false; render(); }, 1500); },
+    goto(r) { actions.go(r); },
+  };
+  function ensurePending() {
+    const tu = S.tuitions['52100002'];
+    if (mineFor(tu.mssv)) return;
+    const now = Date.now();
+    S.txns.unshift({ id: hexId(), mssv: tu.mssv, amount: tu.amount, status: 'PENDING_OTP', reason: null, createdAt: now - 108000, completedAt: null, expiresAt: now + 192000 });
+    tu.status = 'RESERVED';
+  }
+  function submitLogin() {
+    const L = S.login;
+    L.missU = !L.u.trim(); L.missP = !L.p; L.error = null;
+    if (L.missU || L.missP) { pendingFocus = L.missU ? 'u' : 'p'; return render(); }
+    L.busy = true; render();
+    setTimeout(() => {
+      L.busy = false;
+      if (L.p === 'wrong') { L.error = 'Invalid username or password.'; pendingFocus = 'p'; return render(); }
+      S.signedIn = true; S.route = 'home'; L.p = ''; pendingFocus = 'h1'; resetScroll = true; render();
+    }, 400);
+  }
+
+  // ---------- Events ----------
+  $app.addEventListener('click', (e) => {
+    const el = e.target.closest('[data-act]');
+    if (S.menu && !e.target.closest('.top-right')) { S.menu = false; if (!el) render(); }
+    if (!el || el.disabled) return;
+    actions[el.dataset.act](el.dataset.arg, el);
+  });
+  $app.addEventListener('input', (e) => {
+    const t = e.target, kind = t.dataset.input;
+    if (t.dataset.otp != null) return setOtp(Number(t.dataset.otp), t.value);
+    if (kind === 'loginU') { S.login.u = t.value; }
+    else if (kind === 'loginP') { S.login.p = t.value; }
+    else if (kind === 'mssv') { setMssv(t.value); }
+    else if (kind === 'histQ') { S.hist.q = t.value; S.hist.page = 1; render(); }
+  });
+  $app.addEventListener('change', (e) => {
+    if (e.target.dataset.input === 'agreed') { S.pay.agreed = e.target.checked; render(); }
+  });
+  $app.addEventListener('toggle', (e) => { if (e.target.matches('details.terms')) S.pay.termsOpen = e.target.open; }, true);
+  $app.addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (e.target.dataset.form === 'login') submitLogin();
+    if (e.target.dataset.form === 'otp') verify();
+  });
+  $app.addEventListener('paste', (e) => {
+    if (e.target.dataset.otp == null) return;
+    e.preventDefault();
+    const text = (e.clipboardData.getData('text') || '').replace(/\D/g, '').slice(0, OTP_LEN);
+    if (!text) return;
+    S.pay.code = text;
+    pendingFocus = `otp-${Math.min(text.length, OTP_LEN - 1)}`;
+    render();
+    if (text.length === OTP_LEN) verify();
+  });
+  $app.addEventListener('focusin', (e) => { if (e.target.dataset.otp != null) e.target.select(); });
+  $app.addEventListener('keydown', (e) => {
+    const t = e.target;
+    if (t.dataset.otp != null) {
+      const i = Number(t.dataset.otp), P = S.pay;
+      const arr = Array.from({ length: OTP_LEN }, (_, n) => P.code[n] || '');
+      if (e.key === 'Backspace') {
+        e.preventDefault();
+        if (arr[i]) arr[i] = ''; else if (i > 0) { arr[i - 1] = ''; pendingFocus = `otp-${i - 1}`; }
+        P.code = arr.join(''); return render();
+      }
+      if (e.key === 'ArrowLeft' && i > 0) { pendingFocus = `otp-${i - 1}`; return render(); }
+      if (e.key === 'ArrowRight' && i < OTP_LEN - 1) { pendingFocus = `otp-${i + 1}`; return render(); }
+    }
+    if (e.key === 'Escape') {
+      if (S.menu) { S.menu = false; return render(); }
+      if (S.hist.openId) return actions.closeTxn();
+      if (S.confirmHome) return actions.keepHome();
+      if (S.route === 'pay' && S.pay.phase === 'otp' && !S.pay.busy) return S.pay.confirmCancel ? actions.keepPaying() : actions.closeOtp();
+    }
+    if (e.key === 'Tab') {
+      const dlg = $app.querySelector('[role="dialog"], [role="alertdialog"]');
+      if (!dlg) return;
+      const items = [...dlg.querySelectorAll('button:not(:disabled), input:not(:disabled), summary, [tabindex="-1"]')].filter((n) => n.tabIndex >= 0);
+      if (!items.length) return;
+      const first = items[0], last = items[items.length - 1];
+      if (e.shiftKey && (document.activeElement === first || document.activeElement.tabIndex < 0)) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+  });
+  document.getElementById('try').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-demo]');
+    if (b) demos[b.dataset.demo](b.dataset.arg);
+  });
+
+  // ---------- Page controls ----------
+  function setView(v) {
+    document.getElementById('device').classList.toggle('is-mobile', v === 'mobile');
+    document.querySelectorAll('[data-view]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.view === v)));
+  }
+  document.querySelectorAll('[data-view]').forEach((b) => b.addEventListener('click', () => setView(b.dataset.view)));
+  document.getElementById('theme').addEventListener('change', (e) => { document.documentElement.dataset.theme = e.target.value; });
+  document.getElementById('tuition-visible').addEventListener('change', (e) => { opts.tuitionVisible = e.target.checked; render(); });
+  document.getElementById('reset').addEventListener('click', () => { clearTimeout(lookupTimer); S = initial(); pendingFocus = null; resetScroll = true; render(); });
+
+  // ---------- Clock ----------
+  setInterval(() => {
+    let changed = false;
+    S.txns.forEach((t) => {
+      if (t.status !== 'PENDING_OTP' || !t.expiresAt || leftOf(t.expiresAt) > 0) return;
+      if (S.route === 'pay' && S.pay.phase === 'otp' && S.pay.txnId === t.id) return;
+      t.status = 'EXPIRED'; t.reason = TIMED_OUT; delete t.expiresAt;
+      const tu = S.tuitions[t.mssv]; if (tu) tu.status = 'UNPAID';
+      if (S.route === 'pay' && S.pay.mssv === t.mssv) S.pay.notice = 'Your payment was cancelled because the code was not entered in time. No money was taken.';
+      changed = true;
+    });
+    const P = S.pay;
+    if (S.route === 'pay' && P.phase === 'otp') {
+      if (leftOf(P.deadline) === 0 && !P.wasExpired) { P.wasExpired = true; P.code = ''; changed = true; }
+      if (leftOf(P.resendAt) === 0 && !P.cooldownDone) { P.cooldownDone = true; changed = true; }
+    }
+    if (changed) return render();
+    $app.querySelectorAll('[data-deadline]').forEach((el) => { el.textContent = clock(leftOf(Number(el.dataset.deadline))); });
+    $app.querySelectorAll('[data-bar]').forEach((el) => { el.style.width = `${leftOf(Number(el.dataset.bar)) / OTP_TTL * 100}%`; });
+    $app.querySelectorAll('[data-cooldown]').forEach((el) => { el.textContent = clock(leftOf(Number(el.dataset.cooldown))).replace(/^0/, ''); });
+  }, 1000);
+
+  if (window.innerWidth < 760) setView('mobile');
+  render();
+})();
+</script>
+</body>
+</html>
