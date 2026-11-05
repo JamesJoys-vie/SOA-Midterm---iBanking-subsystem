@@ -1,0 +1,62 @@
+{
+  "global": {
+    "color": {
+      "brand": {
+        "primary": { "value": "#2563EB", "type": "color", "description": "Royal Blue Accent" },
+        "primary-hover": { "value": "#1D4ED8", "type": "color" },
+        "primary-light": { "value": "#EFF6FF", "type": "color" },
+        "primary-border": { "value": "#BFDBFE", "type": "color" }
+      },
+      "surface": {
+        "canvas-white": { "value": "#FFFFFF", "type": "color", "description": "Pristine White Background" },
+        "page-subtle": { "value": "#F8FAFC", "type": "color", "description": "Subtle Page Background" },
+        "card-white": { "value": "#FFFFFF", "type": "color", "description": "Elevated White Card" },
+        "card-glass-white": { "value": "rgba(255, 255, 255, 0.92)", "type": "color", "description": "Frosted Glass Navbar" },
+        "border-subtle": { "value": "#E2E8F0", "type": "color" },
+        "border-strong": { "value": "#CBD5E1", "type": "color" }
+      },
+      "text": {
+        "heading": { "value": "#0F172A", "type": "color", "description": "Deep Navy Slate Heading" },
+        "body": { "value": "#334155", "type": "color", "description": "Body Text" },
+        "muted": { "value": "#64748B", "type": "color", "description": "Muted Text" },
+        "dim": { "value": "#94A3B8", "type": "color", "description": "Placeholder & Inactive" }
+      },
+      "semantic": {
+        "success": { "value": "#059669", "type": "color" },
+        "success-surface": { "value": "#ECFDF5", "type": "color" },
+        "success-border": { "value": "#A7F3D0", "type": "color" },
+        "warning": { "value": "#D97706", "type": "color" },
+        "warning-surface": { "value": "#FEF3C7", "type": "color" },
+        "warning-border": { "value": "#FCD34D", "type": "color" },
+        "danger": { "value": "#DC2626", "type": "color" },
+        "danger-surface": { "value": "#FEE2E2", "type": "color" },
+        "danger-border": { "value": "#FCA5A5", "type": "color" }
+      }
+    },
+    "borderRadius": {
+      "sm": { "value": "8px", "type": "borderRadius" },
+      "md": { "value": "12px", "type": "borderRadius" },
+      "lg": { "value": "16px", "type": "borderRadius" },
+      "xl": { "value": "24px", "type": "borderRadius" },
+      "full": { "value": "9999px", "type": "borderRadius" }
+    },
+    "boxShadow": {
+      "soft-card": {
+        "value": "0 1px 3px rgba(15, 23, 42, 0.03), 0 16px 32px -4px rgba(15, 23, 42, 0.06), 0 0 0 1px rgba(226, 232, 240, 0.8)",
+        "type": "boxShadow"
+      },
+      "hover-glow": {
+        "value": "0 4px 6px -1px rgba(15, 23, 42, 0.05), 0 24px 48px -6px rgba(37, 99, 235, 0.12), 0 0 0 1.5px rgba(37, 99, 235, 0.3)",
+        "type": "boxShadow"
+      },
+      "titanium-card": {
+        "value": "0 20px 40px -10px rgba(30, 58, 138, 0.35)",
+        "type": "boxShadow"
+      }
+    },
+    "fontFamilies": {
+      "sans": { "value": "'Plus Jakarta Sans', system-ui, sans-serif", "type": "fontFamilies" },
+      "mono": { "value": "'JetBrains Mono', monospace", "type": "fontFamilies" }
+    }
+  }
+}

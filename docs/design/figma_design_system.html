@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>iBanking Terminal 2.0 — Executive Sidebar &amp; Nav3 Edition (Figma Prototype)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <style>
+    :root {
+      --font-sans: 'Plus Jakarta Sans', system-ui, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+      
+      --bg-canvas: #FFFFFF;
+      --bg-subtle: #F8FAFC;
+      --bg-card: #FFFFFF;
+      --border-card: #CBD5E1;
+      --border-card-hover: #2563EB;
+      --text-head: #0F172A;
+      --text-body: #334155;
+      --text-muted: #64748B;
+      --card-shadow: 0 4px 6px -1px rgba(15, 23, 42, 0.04), 0 20px 35px -5px rgba(15, 23, 42, 0.06), 0 0 0 1px #CBD5E1;
+    }
+
+    [data-theme="dark"] {
+      --bg-canvas: #090D16;
+      --bg-subtle: #0F172A;
+      --bg-card: #111827;
+      --border-card: rgba(255, 255, 255, 0.12);
+      --border-card-hover: #38BDF8;
+      --text-head: #FFFFFF;
+      --text-body: #94A3B8;
+      --text-muted: #64748B;
+      --card-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.1);
+    }
+
+    /* -------------------------------------------------------------
+       CUSTOM SMOOTH SCROLLBAR (CYBER-TECH INDUSTRIAL)
+    ------------------------------------------------------------- */
+    * {
+      box-sizing: border-box;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(37, 99, 235, 0.4) transparent;
+    }
+
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: linear-gradient(180deg, #1D4ED8, #0284C7);
+      border-radius: 9999px;
+      border: 2px solid var(--bg-canvas);
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: linear-gradient(180deg, #2563EB, #38BDF8);
+      box-shadow: 0 0 8px rgba(56, 189, 248, 0.6);
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg-canvas);
+      color: var(--text-head);
+      font-family: var(--font-sans);
+      overflow-x: hidden;
+      scroll-behavior: smooth;
+      transition: background-color 0.2s ease, color 0.2s ease;
+    }
+
+    /* Precision Grid Pattern */
+    .precision-grid {
+      background-size: 32px 32px;
+      background-image: 
+        linear-gradient(to right, rgba(148, 163, 184, 0.12) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(148, 163, 184, 0.12) 1px, transparent 1px);
+    }
+    [data-theme="dark"] .precision-grid {
+      background-image: 
+        linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+    }
+
+    /* Elevated Modern Card */
+    .beam-card {
+      position: relative;
+      background: var(--bg-card);
+      border-radius: 24px;
+      border: 1.5px solid var(--border-card);
+      box-shadow: var(--card-shadow);
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .beam-card:hover {
+      border-color: var(--border-card-hover);
+      transform: translateY(-2px);
+      box-shadow: 0 20px 40px -10px rgba(37, 99, 235, 0.18), 0 0 0 1px var(--border-card-hover);
+    }
+
+    /* Titanium Holographic Card */
+    .titanium-holo {
+      background: linear-gradient(135deg, #0F172A 0%, #1E3A8A 45%, #2563EB 85%, #0284C7 100%);
+      border: 1.5px solid #38BDF8;
+      box-shadow: 0 25px 50px -12px rgba(30, 58, 138, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.4);
+      position: relative;
+      overflow: hidden;
+    }
+    .titanium-holo::after {
+      content: '';
+      position: absolute;
+      top: -100%;
+      left: -100%;
+      width: 300%;
+      height: 300%;
+      background: linear-gradient(45deg, transparent 45%, rgba(255, 255, 255, 0.15) 50%, transparent 55%);
+      transform: rotate(35deg);
+      transition: transform 0.6s ease;
+      pointer-events: none;
+    }
+    .titanium-holo:hover::after {
+      transform: rotate(35deg) translate(20%, 20%);
+    }
+
+    /* Urgent Pulse Animation */
+    @keyframes pulseAlert {
+      0%, 100% { border-color: #F59E0B; box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.3); }
+      50% { border-color: #D97706; box-shadow: 0 0 0 8px rgba(245, 158, 11, 0); }
+    }
+    .urgent-banner {
+      animation: pulseAlert 2.5s infinite ease-in-out;
+    }
+
+    /* Dynamic Island Nav3 Glass */
+    .island-nav3 {
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      background: rgba(255, 255, 255, 0.96);
+      border: 1.5px solid #CBD5E1;
+      box-shadow: 0 12px 30px -8px rgba(15, 23, 42, 0.08);
+    }
+    [data-theme="dark"] .island-nav3 {
+      background: rgba(15, 23, 42, 0.92);
+      border-color: rgba(255, 255, 255, 0.15);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+    }
+
+    /* Active Tab */
+    .nav-tab.active {
+      background: #0F172A;
+      color: #38BDF8;
+      font-weight: 800;
+    }
+    [data-theme="dark"] .nav-tab.active {
+      background: #2563EB;
+      color: #FFFFFF;
+    }
+  </style>
+</head>
+<body class="min-h-screen">
+
+  <!-- ========================================================
+       TOP TELEMETRY SYSTEM STATUS BAR (HUD)
+  ======================================================== -->
+  <aside class="w-full bg-[#0F172A] text-slate-300 py-1.5 px-4 text-[11px] font-mono border-b border-slate-800 flex flex-wrap items-center justify-between gap-2 z-50">
+    <div class="flex items-center gap-4">
+      <span class="flex items-center gap-1.5 text-emerald-400 font-bold">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+        SYSTEM OPERATIONAL
+      </span>
+      <span class="text-slate-500">|</span>
+      <span>CLUSTER: AP-SOUTHEAST-1</span>
+      <span class="text-slate-500">|</span>
+      <span class="text-blue-400 font-semibold">GATEWAY LATENCY: 12ms</span>
+      <span class="text-slate-500">|</span>
+      <span>ENCRYPTION: AES-256-GCM / TLS 1.3</span>
+    </div>
+    <div class="flex items-center gap-3">
+      <span class="text-slate-400">NODE TIMESTAMP:</span>
+      <span id="live-utc-time" class="font-bold text-white">00:00:00 UTC</span>
+    </div>
+  </aside>
+
+  <!-- ========================================================
+       TOP COMMAND SWITCHER
+  ======================================================== -->
+  <header class="sticky top-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-4 py-2.5">
+    <div class="max-w-[1540px] mx-auto flex flex-wrap items-center justify-between gap-3">
+      
+      <!-- Brand & Version -->
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-slate-900 flex items-center justify-center font-black text-white text-lg shadow-md border border-slate-700">
+          <span class="text-sky-400">i</span>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="font-black text-base tracking-tight text-slate-900 dark:text-white">iBanking Executive</span>
+            <span class="text-[10px] font-mono font-extrabold px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-sky-400 border border-blue-200 dark:border-blue-800">BESPOKE SIDEBAR + NAV3</span>
+          </div>
+          <p class="text-[11px] font-mono text-slate-500">Modern Workspace Rail · Dynamic Island Command Bar · Zero Code Changes</p>
+        </div>
+      </div>
+
+      <!-- Screen Selector -->
+      <nav class="flex items-center gap-1 p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-mono text-xs">
+        <button onclick="switchScreen('home')" id="tab-home" class="nav-tab active px-3.5 py-1.5 rounded-lg font-bold transition-all">
+          02. HOME (SIDEBAR + NAV3)
+        </button>
+        <button onclick="switchScreen('all')" id="tab-all" class="nav-tab px-3.5 py-1.5 rounded-lg font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 transition-all">
+          ⚡ ALL ARTBOARDS
+        </button>
+        <button onclick="switchScreen('login')" id="tab-login" class="nav-tab px-3.5 py-1.5 rounded-lg font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 transition-all">
+          01. LOGIN
+        </button>
+        <button onclick="switchScreen('pay')" id="tab-pay" class="nav-tab px-3.5 py-1.5 rounded-lg font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 transition-all">
+          03. PAY TUITION
+        </button>
+        <button onclick="switchScreen('history')" id="tab-history" class="nav-tab px-3.5 py-1.5 rounded-lg font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 transition-all">
+          04. AUDIT LEDGER
+        </button>
+        <button onclick="switchScreen('otp')" id="tab-otp" class="nav-tab px-3.5 py-1.5 rounded-lg font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 transition-all">
+          05. 2FA OTP MODAL
+        </button>
+      </nav>
+
+      <!-- Theme & Download Dropdown -->
+      <div class="flex items-center gap-2">
+        <button onclick="toggleTheme()" class="h-9 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-mono font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5 hover:bg-slate-200 transition-all">
+          <span id="theme-icon">☀️</span>
+          <span id="theme-text" class="hidden sm:inline">HIGH-TECH WHITE</span>
+        </button>
+
+        <div class="relative group">
+          <button class="h-9 px-3.5 rounded-xl bg-slate-900 hover:bg-blue-600 text-white text-xs font-mono font-bold flex items-center gap-2 shadow-md transition-all">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+            <span>FIGMA VECTORS (.SVG)</span>
+          </button>
+          <div class="absolute right-0 top-full mt-1.5 w-64 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl p-2 hidden group-hover:block z-50 font-mono text-xs">
+            <div class="text-[10px] uppercase font-bold text-slate-400 px-2 py-1">Direct Figma Drag &amp; Drop:</div>
+            <a href="figma-frames/02_Dashboard_Home.svg" download class="block px-2.5 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/60 font-bold text-blue-700 dark:text-sky-300">02_Dashboard_Home.svg (Sidebar+Nav3)</a>
+            <a href="figma-frames/01_Login_Desktop.svg" download class="block px-2.5 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200">01_Login_Desktop.svg</a>
+            <a href="figma-frames/03_Tuition_Payment.svg" download class="block px-2.5 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200">03_Tuition_Payment.svg</a>
+            <a href="figma-frames/04_Transaction_History.svg" download class="block px-2.5 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200">04_Transaction_History.svg</a>
+            <a href="figma-frames/05_OTP_Modal.svg" download class="block px-2.5 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200">05_OTP_Modal.svg</a>
+            <div class="border-t border-slate-200 dark:border-slate-800 my-1"></div>
+            <a href="figma-tokens.json" download class="block px-2.5 py-1.5 rounded-lg text-blue-600 dark:text-sky-400 font-bold hover:bg-slate-100 dark:hover:bg-slate-800">figma-tokens.json</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ========================================================
+       FRAME 02: BESPOKE SIDEBAR + WEB3 DYNAMIC ISLAND NAV3
+  ======================================================== -->
+  <section id="frame-home" class="screen-frame max-w-[1540px] mx-auto p-4 lg:p-6 mb-16">
+    <div class="flex items-center justify-between mb-3 px-1 font-mono">
+      <div class="flex items-center gap-2">
+        <span class="text-xs font-extrabold text-blue-600 dark:text-sky-400 uppercase tracking-wider">// FRAME 02 [HIGH TIER]</span>
+        <h3 class="text-sm font-extrabold text-slate-900 dark:text-white">EXECUTIVE BESPOKE SIDEBAR &amp; WEB3 DYNAMIC ISLAND NAV3 (1440 × 1024)</h3>
+      </div>
+      <span class="text-[11px] text-slate-400">RESOLUTION: 1440 × 1024</span>
+    </div>
+
+    <!-- MAIN APP SHELL CONTAINER (SIDEBAR + MAIN CANVAS) -->
+    <div class="rounded-3xl border-2 border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl overflow-hidden grid lg:grid-cols-[260px_1fr]">
+      
+      <!-- =====================================================
+           LEFT BESPOKE SIDEBAR
+      ===================================================== -->
+      <aside class="border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 flex flex-col justify-between min-h-[920px]">
+        <div>
+          <!-- Workspace Selector Header -->
+          <div class="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 flex items-center justify-between mb-6">
+            <div class="flex items-center gap-2.5">
+              <div class="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center font-black text-sky-400 text-sm">iB</div>
+              <div>
+                <div class="text-xs font-black text-slate-900 dark:text-white">iBanking Terminal</div>
+                <div class="text-[10px] font-mono text-slate-500 font-semibold">VNU-HCM NODE ▾</div>
+              </div>
+            </div>
+            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+          </div>
+
+          <!-- Section 1: CORE BANKING -->
+          <div class="space-y-1 mb-6">
+            <div class="text-[10px] font-mono font-extrabold text-slate-400 px-2 py-1 uppercase tracking-wider">CORE BANKING</div>
+            
+            <a href="#overview" class="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-slate-900 text-white font-bold text-xs shadow-md">
+              <div class="flex items-center gap-2.5">
+                <span class="text-sky-400 text-sm">⊞</span>
+                <span>Overview Hub</span>
+              </div>
+              <span class="w-1.5 h-1.5 rounded-full bg-sky-400"></span>
+            </a>
+
+            <button onclick="switchScreen('pay')" class="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-semibold text-xs transition-colors">
+              <div class="flex items-center gap-2.5">
+                <span class="text-slate-400 text-sm">💳</span>
+                <span>Tuition Settlement</span>
+              </div>
+              <span class="px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-200 font-mono text-[9px] font-extrabold border border-amber-300">1 HELD</span>
+            </button>
+
+            <button onclick="switchScreen('history')" class="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-semibold text-xs transition-colors">
+              <div class="flex items-center gap-2.5">
+                <span class="text-slate-400 text-sm">📋</span>
+                <span>Audit Ledger</span>
+              </div>
+            </button>
+
+            <a href="#vault" class="flex items-center justify-between px-3.5 py-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-semibold text-xs transition-colors">
+              <div class="flex items-center gap-2.5">
+                <span class="text-slate-400 text-sm">🛡️</span>
+                <span>Virtual Vault 3D</span>
+              </div>
+            </a>
+          </div>
+
+          <!-- Section 2: TELEMETRY & SOA -->
+          <div class="space-y-1">
+            <div class="text-[10px] font-mono font-extrabold text-slate-400 px-2 py-1 uppercase tracking-wider">TELEMETRY &amp; SOA</div>
+            
+            <a href="#sis" class="flex items-center gap-2.5 px-3.5 py-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-medium text-xs">
+              <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+              <span>Registrar Sync (SIS)</span>
+            </a>
+
+            <button onclick="switchScreen('otp')" class="w-full flex items-center gap-2.5 px-3.5 py-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-medium text-xs text-left">
+              <span class="w-2 h-2 rounded-full bg-blue-500"></span>
+              <span>2FA OTP Cryptography</span>
+            </button>
+
+            <a href="#docs" class="flex items-center gap-2.5 px-3.5 py-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-medium text-xs">
+              <span class="w-2 h-2 rounded-full bg-slate-400"></span>
+              <span>SOA Documentation</span>
+            </a>
+          </div>
+        </div>
+
+        <!-- Embedded Sidebar Liquidity Card Widget & Profile -->
+        <div class="space-y-3 pt-6 border-t border-slate-100 dark:border-slate-800">
+          <!-- Liquidity Card Widget -->
+          <div class="p-4 rounded-2xl bg-slate-900 border border-slate-700 text-white relative overflow-hidden shadow-lg">
+            <div class="flex justify-between items-center mb-1">
+              <span class="font-mono text-[10px] font-extrabold text-sky-400">VAULT LIQUIDITY (VND)</span>
+              <button onclick="toggleBalanceEye()" class="text-xs text-slate-400 hover:text-white">👁️</button>
+            </div>
+            
+            <div id="sidebar-balance" class="font-black text-xl tracking-tight text-white my-1">
+              ₫ 25,450,000
+            </div>
+
+            <!-- Mini Sparkline Activity SVG -->
+            <svg class="w-full h-8 my-1" viewBox="0 0 180 32" fill="none">
+              <path d="M0 24 L25 20 L50 26 L80 14 L110 18 L140 8 L180 12" stroke="#38BDF8" stroke-width="2" fill="none"/>
+              <path d="M0 24 L25 20 L50 26 L80 14 L110 18 L140 8 L180 12 L180 32 L0 32 Z" fill="rgba(56, 189, 248, 0.15)"/>
+            </svg>
+
+            <div class="font-mono text-[9px] text-slate-400">
+              ACC: 1029 4829 1102 · TLS 1.3
+            </div>
+          </div>
+
+          <!-- User Profile Bar -->
+          <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <div class="w-8 h-8 rounded-full bg-slate-900 flex items-center justify-center font-mono font-bold text-sky-400 text-xs">AN</div>
+              <div>
+                <div class="text-xs font-bold text-slate-900 dark:text-white">Alice Nguyen</div>
+                <div class="font-mono text-[9px] text-emerald-600 font-bold">● AUTHENTICATED</div>
+              </div>
+            </div>
+            <button onclick="switchScreen('login')" class="text-xs text-slate-400 hover:text-red-500 font-bold" title="Sign out">⎋</button>
+          </div>
+        </div>
+      </aside>
+
+      <!-- =====================================================
+           RIGHT MAIN WORKSPACE (WITH DYNAMIC ISLAND NAV3)
+      ===================================================== -->
+      <main class="precision-grid p-6 lg:p-8 space-y-6">
+        
+        <!-- DYNAMIC ISLAND TOPBAR (NAV3 CONTROLLER) -->
+        <div class="island-nav3 rounded-2xl p-3 flex flex-wrap items-center justify-between gap-3 shadow-md">
+          <!-- Breadcrumb -->
+          <div class="flex items-center gap-2 font-mono text-xs">
+            <span class="text-slate-400 font-bold">WORKSPACE /</span>
+            <span class="text-slate-900 dark:text-white font-extrabold">STUDENT CONSOLE</span>
+          </div>
+
+          <!-- Command Search (Linear / Raycast Style) -->
+          <div class="relative flex-1 max-w-sm">
+            <input type="text" placeholder="Quick command or query MSSV..." class="w-full h-10 pl-9 pr-14 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-mono text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-600">
+            <span class="absolute left-3 top-2.5 text-xs text-slate-400">🔍</span>
+            <span class="absolute right-2.5 top-2 px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 font-mono text-[10px] font-extrabold text-slate-600 dark:text-slate-300">⌘ + K</span>
+          </div>
+
+          <!-- Dynamic Island Badges -->
+          <div class="flex items-center gap-2 font-mono text-xs">
+            <div class="px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 font-bold">
+              ⚡ FEE: 0 VND
+            </div>
+
+            <div class="px-3 py-2 rounded-xl bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-800 text-amber-800 dark:text-amber-300 font-bold flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
+              <span>HOLD: 21120001 (04:32)</span>
+            </div>
+
+            <button onclick="switchScreen('pay')" class="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-sans font-extrabold shadow-md transition-all">
+              + New Payment
+            </button>
+          </div>
+        </div>
+
+        <!-- ROW 1: 3D HOLOGRAPHIC CARD + TELEMETRY PERFORMANCE TILES -->
+        <div class="grid lg:grid-cols-12 gap-6 items-start">
+          
+          <!-- 3D Titanium Card Nexus -->
+          <div class="lg:col-span-5 titanium-holo rounded-3xl p-7 text-white shadow-xl min-h-[260px] flex flex-col justify-between cursor-pointer" onclick="toggleBalanceEye()">
+            <div class="flex justify-between items-center">
+              <div class="w-12 h-9 rounded-md bg-amber-400 border border-amber-600 flex items-center justify-center relative shadow-inner">
+                <div class="w-full h-0.5 bg-amber-700"></div>
+                <div class="h-full w-0.5 bg-amber-700 absolute"></div>
+              </div>
+              <span class="font-mono text-xs font-extrabold text-sky-200 px-2.5 py-1 rounded-md bg-slate-900/60 border border-sky-400/50">TITANIUM 3D</span>
+            </div>
+
+            <div class="my-4">
+              <div class="font-mono text-2xl font-black tracking-widest text-white/95">
+                4829  ••••  ••••  8892
+              </div>
+              <div class="font-mono text-xs text-sky-200 mt-1">
+                LIQUIDITY: <span id="holo-balance" class="font-black text-white text-sm">₫ 25,450,000</span>
+              </div>
+            </div>
+
+            <div class="flex justify-between items-end font-mono text-xs">
+              <div>
+                <div class="text-[9px] text-sky-300 uppercase">Cardholder</div>
+                <div class="font-bold text-sm text-white font-sans">ALICE NGUYEN</div>
+              </div>
+              <div>
+                <div class="text-[9px] text-sky-300 uppercase">Expires</div>
+                <div class="font-bold text-sm text-white">12/30</div>
+              </div>
+              <div class="text-xl font-black italic tracking-wider font-sans">VISA</div>
+            </div>
+          </div>
+
+          <!-- Right 2 Executive Analytics Tiles & Sparkline Chart -->
+          <div class="lg:col-span-7 grid grid-rows-2 gap-4">
+            <!-- Tile A: Settlement Volume -->
+            <div class="p-5 rounded-2xl bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-between">
+              <div>
+                <span class="text-xs font-mono font-bold text-slate-500 uppercase block mb-1">SETTLED INVOICES TO DATE</span>
+                <div class="flex items-baseline gap-2">
+                  <span class="text-3xl font-black text-slate-900 dark:text-white">14 Paid</span>
+                  <span class="text-sm font-mono font-extrabold text-emerald-600">₫ 128,500,000 TOTAL</span>
+                </div>
+                <span class="text-[11px] font-mono text-slate-400">REGISTRAR COMPLIANCE: 100% AUDITED</span>
+              </div>
+
+              <!-- Mini Sparkline Activity Bars -->
+              <div class="flex items-end gap-1.5 h-12">
+                <div class="w-3 bg-slate-200 dark:bg-slate-700 h-6 rounded-sm"></div>
+                <div class="w-3 bg-slate-200 dark:bg-slate-700 h-8 rounded-sm"></div>
+                <div class="w-3 bg-slate-200 dark:bg-slate-700 h-5 rounded-sm"></div>
+                <div class="w-3 bg-blue-600 h-10 rounded-sm"></div>
+                <div class="w-3 bg-sky-400 h-9 rounded-sm"></div>
+                <div class="w-3 bg-emerald-500 h-12 rounded-sm shadow-sm"></div>
+                <div class="w-3 bg-slate-200 dark:bg-slate-700 h-7 rounded-sm"></div>
+              </div>
+            </div>
+
+            <!-- Tile B: Anti-Collision Seat Lock Status -->
+            <div class="p-5 rounded-2xl bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-between">
+              <div>
+                <span class="text-xs font-mono font-bold text-slate-500 uppercase block mb-1">CONCURRENT SEAT RESERVATION ENGINE</span>
+                <div class="flex items-baseline gap-2">
+                  <span class="text-3xl font-black text-amber-600">1 Seat Held</span>
+                  <span class="text-xs font-mono font-bold text-slate-500">· MSSV 21120001</span>
+                </div>
+                <span class="text-[11px] font-mono text-amber-600 font-semibold">5-MIN TIME-TO-LIVE (TTL) LOCK IN PROGRESS</span>
+              </div>
+              <button onclick="openOtpModal()" class="px-4 py-2.5 rounded-xl bg-slate-900 text-sky-400 hover:bg-slate-800 font-mono text-xs font-extrabold shadow-md">
+                VERIFY OTP →
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ROW 2: ACTIVE 5-MIN SEAT HOLD TICKET CARD -->
+        <div class="urgent-banner rounded-2xl p-5 bg-amber-50 dark:bg-amber-950/30 border-2 border-amber-400 shadow-md flex flex-wrap items-center justify-between gap-4">
+          <div class="flex items-center gap-3.5">
+            <div class="w-11 h-11 rounded-xl bg-amber-200 dark:bg-amber-900/60 flex items-center justify-center text-amber-800 dark:text-amber-300 font-black text-lg">⚠️</div>
+            <div>
+              <div class="text-sm font-extrabold text-amber-900 dark:text-amber-100 flex items-center gap-2">
+                <span>PRIORITY TUITION HOLD: STUDENT ID 21120001 (ALICE NGUYEN)</span>
+                <span class="px-2 py-0.5 rounded bg-amber-200 dark:bg-amber-800 text-amber-900 dark:text-amber-100 text-[10px] font-mono font-bold">RESERVED</span>
+              </div>
+              <div class="text-xs font-mono text-amber-800 dark:text-amber-300 mt-0.5">
+                INVOICE #SIS-2026-99201 · DEMAND: ₫ 8,400,000 · EXPIRATION TIMER: <span id="reservation-timer" class="font-mono font-black text-amber-700 dark:text-amber-400">04:32 REMAINING</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-2 font-mono">
+            <button onclick="openOtpModal()" class="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md">
+              Enter OTP Code →
+            </button>
+            <button onclick="cancelReservation()" class="px-3.5 py-2.5 rounded-xl bg-red-100 hover:bg-red-200 dark:bg-red-950/60 text-red-700 dark:text-red-300 border border-red-300 text-xs font-bold">
+              Release Seat
+            </button>
+          </div>
+        </div>
+
+        <!-- ROW 3: REAL-TIME CRYPTOGRAPHIC SETTLEMENT LEDGER -->
+        <div class="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 overflow-hidden shadow-sm">
+          <div class="p-5 flex items-center justify-between border-b border-slate-200 dark:border-slate-700">
+            <div>
+              <h3 class="font-black text-base text-slate-900 dark:text-white">Tuition Settlement Ledger &amp; Live Telemetry</h3>
+              <p class="text-xs font-mono text-slate-500">HIGH-INTEGRITY FINANCIAL EVENT STREAM · REAL-TIME REGISTRAR HANDSHAKE</p>
+            </div>
+            <button onclick="switchScreen('history')" class="text-xs font-mono font-bold text-blue-600 dark:text-sky-400 hover:underline">EXPAND AUDIT →</button>
+          </div>
+
+          <div class="overflow-x-auto font-mono text-xs">
+            <table class="w-full text-left">
+              <thead class="bg-slate-900 text-sky-300 uppercase font-bold">
+                <tr>
+                  <th class="p-3.5 pl-5">TXN REFERENCE</th>
+                  <th class="p-3.5">STUDENT RECORD / ID</th>
+                  <th class="p-3.5">SEMESTER &amp; FACULTY</th>
+                  <th class="p-3.5">SETTLED AMOUNT</th>
+                  <th class="p-3.5">STATUS</th>
+                  <th class="p-3.5 pr-5 text-right">ACTION</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100 dark:divide-slate-700 text-slate-900 dark:text-slate-100">
+                <tr class="hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                  <td class="p-3.5 pl-5 font-bold text-blue-600 dark:text-sky-400">#TXN-902814-VN<br><span class="text-[10px] text-slate-400 font-normal">10:45 AM TODAY · 12ms</span></td>
+                  <td class="p-3.5 font-bold font-sans">Nam Le<br><span class="text-[11px] font-mono text-slate-500 font-normal">MSSV: 21120456</span></td>
+                  <td class="p-3.5 text-slate-600 dark:text-slate-300 font-sans">Semester 1 (2026-2027)<br><span class="text-[10px] text-slate-400 font-mono">DEPT OF CS</span></td>
+                  <td class="p-3.5 font-black text-sm">₫ 8,400,000</td>
+                  <td class="p-3.5">
+                    <span class="px-2.5 py-1 rounded bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 font-extrabold text-[11px]">SUCCESS</span>
+                  </td>
+                  <td class="p-3.5 pr-5 text-right">
+                    <button class="text-xs font-bold text-blue-600 dark:text-sky-400 hover:underline">RECEIPT</button>
+                  </td>
+                </tr>
+                <tr class="hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                  <td class="p-3.5 pl-5 font-bold text-blue-600 dark:text-sky-400">#TXN-884102-VN<br><span class="text-[10px] text-slate-400 font-normal">16:20 PM YESTERDAY · 14ms</span></td>
+                  <td class="p-3.5 font-bold font-sans">Mai Anh Tran<br><span class="text-[11px] font-mono text-slate-500 font-normal">MSSV: 21120112</span></td>
+                  <td class="p-3.5 text-slate-600 dark:text-slate-300 font-sans">Semester 1 (2026-2027)<br><span class="text-[10px] text-slate-400 font-mono">DEPT OF EE</span></td>
+                  <td class="p-3.5 font-black text-sm">₫ 11,200,000</td>
+                  <td class="p-3.5">
+                    <span class="px-2.5 py-1 rounded bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 font-extrabold text-[11px]">SUCCESS</span>
+                  </td>
+                  <td class="p-3.5 pr-5 text-right">
+                    <button class="text-xs font-bold text-blue-600 dark:text-sky-400 hover:underline">RECEIPT</button>
+                  </td>
+                </tr>
+                <tr class="hover:bg-amber-50/50 dark:hover:bg-amber-950/30 transition-colors">
+                  <td class="p-3.5 pl-5 font-bold text-amber-700 dark:text-amber-400">#HOLD-21120001<br><span class="text-[10px] text-amber-600 font-normal">SEAT RESERVED · 04:32 TTL</span></td>
+                  <td class="p-3.5 font-bold font-sans text-amber-900 dark:text-amber-200">Alice Nguyen<br><span class="text-[11px] font-mono text-amber-700 font-normal">MSSV: 21120001</span></td>
+                  <td class="p-3.5 text-amber-900 dark:text-amber-200 font-sans">Semester 1 (2026-2027)<br><span class="text-[10px] text-amber-700 font-mono">DEPT OF CS</span></td>
+                  <td class="p-3.5 font-black text-sm text-amber-800 dark:text-amber-300">₫ 8,400,000</td>
+                  <td class="p-3.5">
+                    <span class="px-2.5 py-1 rounded bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-200 border border-amber-300 font-extrabold text-[11px]">RESERVED</span>
+                  </td>
+                  <td class="p-3.5 pr-5 text-right">
+                    <button onclick="openOtpModal()" class="text-xs font-bold text-blue-600 dark:text-sky-400 hover:underline">VERIFY</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </main>
+    </div>
+  </section>
+
+  <!-- ========================================================
+       MODAL 2FA OTP POPUP SIMULATION
+  ======================================================== -->
+  <div id="otp-modal-container" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-md hidden items-center justify-center p-4">
+    <div class="w-full max-w-lg p-8 rounded-3xl bg-white dark:bg-slate-900 border-2 border-slate-900 dark:border-slate-700 shadow-2xl text-center relative">
+      <button onclick="closeOtpModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-900 text-lg font-mono">✕</button>
+      
+      <div class="w-16 h-16 rounded-2xl bg-slate-900 flex items-center justify-center text-sky-400 text-2xl mx-auto mb-4 border border-slate-700 shadow-lg">
+        🛡️
+      </div>
+
+      <h3 class="text-2xl font-black text-slate-900 dark:text-white tracking-tight mb-2">Two-Factor Cryptographic 2FA</h3>
+      <p class="text-xs font-mono text-slate-500 mb-1">DISPATCHED TO AUTHENTICATED ADDRESS:</p>
+      <div class="font-mono text-sm font-extrabold text-blue-600 dark:text-sky-400 mb-4">alice.nguyen***@university.edu.vn</div>
+
+      <div class="inline-block px-4 py-1.5 rounded-lg bg-slate-900 text-sky-300 font-mono text-xs font-bold mb-6 border border-slate-700">
+        SETTLE DEMAND: ₫ 8,400,000
+      </div>
+
+      <div class="flex justify-center gap-2.5 sm:gap-3 mb-6">
+        <input type="text" maxlength="1" value="8" class="w-12 h-14 rounded-xl bg-slate-50 dark:bg-slate-800 border-2 border-slate-900 dark:border-slate-600 text-center font-mono text-2xl font-black text-slate-900 dark:text-white focus:outline-none">
+        <input type="text" maxlength="1" value="4" class="w-12 h-14 rounded-xl bg-slate-50 dark:bg-slate-800 border-2 border-slate-900 dark:border-slate-600 text-center font-mono text-2xl font-black text-slate-900 dark:text-white focus:outline-none">
+        <input type="text" maxlength="1" value="9" class="w-12 h-14 rounded-xl bg-slate-50 dark:bg-slate-800 border-2 border-slate-900 dark:border-slate-600 text-center font-mono text-2xl font-black text-slate-900 dark:text-white focus:outline-none">
+        <input type="text" maxlength="1" value="2" class="w-12 h-14 rounded-xl bg-slate-50 dark:bg-slate-800 border-2 border-slate-900 dark:border-slate-600 text-center font-mono text-2xl font-black text-slate-900 dark:text-white focus:outline-none">
+        <input type="text" maxlength="1" value="1" class="w-12 h-14 rounded-xl bg-blue-50 dark:bg-blue-950/80 border-2 border-blue-600 ring-4 ring-blue-100 text-center font-mono text-2xl font-black text-blue-600 focus:outline-none">
+        <input type="text" maxlength="1" placeholder="•" class="w-12 h-14 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-center font-mono text-2xl font-black text-slate-400 focus:outline-none">
+      </div>
+
+      <div class="flex items-center justify-center gap-2 font-mono text-xs mb-6">
+        <span class="w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping"></span>
+        <span class="text-amber-700 dark:text-amber-400 font-bold">CODE TIMEOUT: <span class="font-mono">02:45 REMAINING</span></span>
+        <span class="text-slate-300">·</span>
+        <button class="text-blue-600 dark:text-sky-400 font-bold hover:underline">RESEND DISPATCH (22s)</button>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3 font-mono">
+        <button onclick="closeOtpModal()" class="h-12 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold border border-slate-300 dark:border-slate-700">
+          ABORT
+        </button>
+        <button onclick="confirmOtpSuccess()" class="h-12 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md">
+          CONFIRM &amp; SETTLE
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================
+       LIVE TELEMETRY JAVASCRIPT
+  ======================================================== -->
+  <script>
+    function updateClock() {
+      const now = new Date();
+      const timeStr = now.toISOString().substring(11, 19) + ' UTC';
+      const el = document.getElementById('live-utc-time');
+      if (el) el.textContent = timeStr;
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    function switchScreen(screen) {
+      if (screen === 'otp') {
+        openOtpModal();
+        return;
+      }
+      if (screen === 'home') {
+        document.getElementById('frame-home').scrollIntoView({ behavior: 'smooth' });
+        return;
+      }
+      alert('Viewing mode for: ' + screen.toUpperCase() + ' is available. Full artboards can be opened in Figma or previewed in the master canvas.');
+    }
+
+    function toggleTheme() {
+      const html = document.documentElement;
+      const current = html.getAttribute('data-theme');
+      const next = current === 'dark' ? 'light' : 'dark';
+      html.setAttribute('data-theme', next);
+      
+      document.getElementById('theme-icon').textContent = next === 'dark' ? '🌙' : '☀️';
+      document.getElementById('theme-text').textContent = next === 'dark' ? 'STEALTH OBSIDIAN' : 'HIGH-TECH WHITE';
+    }
+
+    let balanceVisible = true;
+    function toggleBalanceEye() {
+      balanceVisible = !balanceVisible;
+      const sidebarBalance = document.getElementById('sidebar-balance');
+      const holoBalance = document.getElementById('holo-balance');
+      if (balanceVisible) {
+        if (sidebarBalance) sidebarBalance.textContent = '₫ 25,450,000';
+        if (holoBalance) holoBalance.textContent = '₫ 25,450,000';
+      } else {
+        if (sidebarBalance) sidebarBalance.textContent = '••••••••••••';
+        if (holoBalance) holoBalance.textContent = '••••••••••••';
+      }
+    }
+
+    function openOtpModal() {
+      const m = document.getElementById('otp-modal-container');
+      if (m) {
+        m.classList.remove('hidden');
+        m.classList.add('flex');
+      }
+    }
+
+    function closeOtpModal() {
+      const m = document.getElementById('otp-modal-container');
+      if (m) {
+        m.classList.remove('flex');
+        m.classList.add('hidden');
+      }
+    }
+
+    function cancelReservation() {
+      alert('Tuition seat reservation for Student ID 21120001 has been released.');
+    }
+
+    function confirmOtpSuccess() {
+      alert('🎉 Cryptographic Verification Successful! Fee of ₫ 8,400,000 settled. Certified audit receipt issued.');
+      closeOtpModal();
+    }
+
+    let secondsLeft = 272;
+    setInterval(() => {
+      if (secondsLeft > 0) {
+        secondsLeft--;
+        const mins = String(Math.floor(secondsLeft / 60)).padStart(2, '0');
+        const secs = String(secondsLeft % 60).padStart(2, '0');
+        const timerEl = document.getElementById('reservation-timer');
+        if (timerEl) timerEl.textContent = `${mins}:${secs} REMAINING`;
+      }
+    }, 1000);
+  </script>
+</body>
+</html>
