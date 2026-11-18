@@ -1,98 +1,268 @@
-# iBanking with Mircroservices Architecture
-## Member:
-- 524H0086: Tran Hong Nhat Duy
-- 524H0087: Nguyen Duc Hieu
-- 524H0081: Phan Huy Binh
+# iBanking – Tuition Payment Subsystem
 
-## Layout
-Same organization as the reference plan (`Project`):
-- `backend/gateway`           API gateway: JWT check, `X-User-Id`, rate limit (Redis), allow-list routing
-- `backend/services/*`        user, tuition, payment, otp, notification (each: `app/`, `tests/`; payment also has Alembic `migrations/`)
-- `backend/shared`            JWT/bcrypt, DB helpers, Redis client, Redis Streams event bus (`events.py`)
-- `backend/infra`             container entrypoint, MySQL init script (one database + one user per service)
-- `backend/scripts`           `seed.py` (demo users, accounts, tuitions), `race_demo.py` (concurrency demo)
-- `frontend`                  React + JavaScript (Vite) client, served by nginx
-- `docs`                      API reference (`api/endpoints.md` + `api/openapi/`), service responsibilities
-                              (`design/services.md`), diagrams, wireframes
-- `tests`                     load/concurrency suite - planned
+![Python](https://img.shields.io/badge/Python-3.12%2B-3776AB?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.121%2B-009688?logo=fastapi&logoColor=white)
+![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
+![MySQL](https://img.shields.io/badge/MySQL-8.4-4479A1?logo=mysql&logoColor=white)
+![Redis](https://img.shields.io/badge/Redis-7-DC382D?logo=redis&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker%20Compose-ready-2496ED?logo=docker&logoColor=white)
 
-## Infrastructure
-MySQL 8 (one database per service) + Redis 7 only. Redis is both the OTP store (keys with TTL) and the
-event bus (Redis Streams + consumer groups, AOF persistence). No separate message broker.
-Who owns which data and who calls whom: [docs/design/services.md](docs/design/services.md).
+A service-oriented internet-banking subsystem that lets a payer settle a student's tuition from their bank
+account, with each payment confirmed by a one-time password (OTP) sent by email. The system is built as five
+FastAPI microservices behind an API gateway, with a React single-page client.
 
-## OTP and email
-- payment-service asks otp-service for a code; otp-service keeps only a SHA-256 of it in Redis (5 min TTL, single use,
-  burned after 5 wrong codes, 30 s between codes, max 4 per payment) and publishes `otp.requested`.
-- The code inside that event is encrypted (`otp_enc`, key `OTP_EVENT_KEY`, generated on first start by `otp-key-init`
-  and mounted into otp-service and notification-service only), so the stream, Redis' AOF file and dead letters never
-  hold the plain code.
-- notification-service reads `otp.requested` and `payment.completed` (consumer group `notification`) and sends the
-  OTP and receipt emails. Delivery is at-least-once with no duplicate email; a failed send is retried every 15 s;
-  after 5 tries, or at once when retrying cannot help (bad payload, address refused), the event moves to
-  `events:dead:<type>` with the error (`docker compose exec redis redis-cli XRANGE events:dead:otp.requested - +`).
-  An OTP email whose code has already expired is dropped instead of sent.
-- Without `SMTP_USER` the emails are printed to the notification-service log (development only).
+> Midterm project – Service-Oriented Architecture.
 
-## Frontend
-React 18 + Vite + Tailwind, TanStack Query; screens follow `docs/wireframes/wireframes.html`.
-- `/login`, `/home` (balance, payment stats, payments waiting for an OTP with Resume / Cancel, recent transactions),
-  `/pay` (payer, MSSV lookup, confirm -> OTP modal -> result), `/history` (search by MSSV, status filter, pages).
-- One `Idempotency-Key` per payment attempt, so a retried "Confirm" never creates a second transaction.
-- Nothing sensitive in the address bar: the token stays in `sessionStorage`, Resume passes the transaction id in
-  router state, filters are component state; the URL only ever shows `/login`, `/home`, `/pay`, `/history`.
-- Amounts are hidden by default (eye toggle, remembered per browser).
+## Table of Contents
+- [Key Features](#key-features)
+- [Architecture](#architecture)
+- [Technology Stack](#technology-stack)
+- [Repository Structure](#repository-structure)
+- [Getting Started](#getting-started)
+- [Configuration](#configuration)
+- [Testing](#testing)
+- [Documentation](#documentation)
+- [Team and Contributions](#team-and-contributions)
 
-## Progress
-| Part | Owner | State |
-|---|---|---|
-| Planning docs (API reference, OpenAPI, diagrams, wireframes) | Duy | done |
-| `otp_service` (Redis OTP store, cooldown, single use, encrypted `otp.requested` event) + tests | Duy | done |
-| `notification_service` (Streams consumer, dedupe, dead letters, SMTP / log mailer) + tests | Duy | done |
-| `frontend` foundation: tooling, API client, auth, layout, UI kit, Login page | Duy | done |
-| `frontend` `/pay` details step (payer, tuition lookup, confirm) | Duy | done |
-| `frontend` OTP modal + Result, Home, History pages | Duy | done |
-| `user-service` (login/JWT, profile, account, debit/credit, history) + tests | Hieu | done |
-| `tuition-service` (lookup, reserve/commit/release hold) + tests | Hieu | done |
-| `seed.py` (demo data) | Hieu | done |
-| `gateway` (JWT guard, rate limiter, reverse proxy) + tests | Binh | done |
-| `payment_service` (saga, idempotency, outbox relay, expiry job, Alembic migration) + tests | Binh | done |
-| `docker-compose.yml` (MySQL, Redis, Adminer, all services, gateway, web) | Binh | done |
-| `race_demo.py` + `docker-compose.demo.yml` (same account / same tuition races) | Binh | done |
-| Load tests (Locust, pytest races, invariant checker) + fixes they found, `docs/reports/LOAD_TEST_REPORT.md` | Duy | done |
+## Key Features
+- **Secure payment flow** – tuition lookup by student ID (MSSV), balance reservation, OTP confirmation and
+  receipt email, coordinated by a saga in the payment service.
+- **Duplicate-safe payments** – an `Idempotency-Key` per payment attempt guarantees that a retried confirmation
+  never creates a second transaction.
+- **Hardened OTPs** – only a SHA-256 hash is stored, with a 5-minute TTL, single use, lockout after 5 wrong
+  attempts, a 30-second resend cooldown and a cap of 4 codes per payment.
+- **Reliable notifications** – event-driven email delivery over Redis Streams, at-least-once with
+  de-duplication, automatic retries and a dead-letter stream.
+- **Edge protection** – JWT validation, Redis-backed rate limiting and allow-list routing at the gateway.
+- **Concurrency-safe** – verified against same-account and same-tuition race conditions with dedicated
+  load and race tests.
 
-## Run
-First run (needs Docker Desktop):
+## Architecture
 
-1. Create your settings file:
-   ```powershell
-   Copy-Item .env.example .env
-   ```
-2. Start everything, including the demo data:
-   ```powershell
-   docker compose up -d --build
-   ```
-3. Open http://localhost:8080 and log in as `alice` / `Password123!`. To try a payment, use student `52100001`.
-
-Emails go to the log until you add SMTP values to `.env`. To read the OTP code:
-```powershell
-docker compose logs notification-service
+```mermaid
+flowchart LR
+  Browser([Browser]) --> WEB[Web<br/>nginx + React]
+  WEB -->|/api/*| GW[API Gateway]
+  GW --> US[User Service]
+  GW --> TS[Tuition Service]
+  GW --> PS[Payment Service]
+  PS --> US
+  PS --> TS
+  PS --> OTP[OTP Service]
+  PS -. payment.completed .-> RS[(Redis Streams)]
+  OTP -. otp.requested .-> RS
+  RS -.-> NS[Notification Service]
+  NS -->|SMTP| MAIL[(Mail server)]
 ```
 
-Stop with `docker compose down`. To start over with empty data, run `docker compose down -v`, then step 2.
+Solid arrows are synchronous REST calls; dashed arrows are asynchronous events. The detailed diagram is in
+[docs/diagrams/architecture.mmd](docs/diagrams/architecture.mmd).
 
-Other: Adminer is at http://localhost:8081. Race demo:
-`docker compose -f docker-compose.yml -f docker-compose.demo.yml --profile demo run --rm race-demo all`
-(enables the OTP test echo; never use it on a real deployment). Frontend alone:
-`cd frontend; npm install; npm run dev` (serves :5173, proxies `/api` to the gateway on :8080).
+| Component | Responsibility | Data store |
+|---|---|---|
+| **API Gateway** | Single entry point for `/api/*`: JWT check, `X-User-Id` propagation, rate limiting, allow-list routing | Redis (rate-limit counters) |
+| **User Service** | Login and JWT issuance, profile, account balance, debit / credit, transaction history | MySQL `users_db` |
+| **Tuition Service** | Tuition lookup, reserve / commit / release of tuition holds | MySQL `tuition_db` |
+| **Payment Service** | Transaction lifecycle (saga), idempotency, transactional outbox relay, expiry and reconciliation job | MySQL `payments_db` |
+| **OTP Service** | Issues and verifies OTPs; publishes `otp.requested` | Redis (OTP keys with TTL) |
+| **Notification Service** | Consumes `otp.requested` and `payment.completed`; sends OTP and receipt emails | Redis Streams |
 
-## Tests
-Tests (from each service folder, with `pip install -r backend/requirements.txt pytest fakeredis email-validator`):
-`python -m pytest -q tests`. The otp-service and notification-service tests need a real Redis (db 15, flushed);
-run them inside the compose network with the command at the top of `test_otp_store.py` / `tests/conftest.py`.
+### Design Principles
+- **Database per service** – each service owns its own MySQL database and user; services communicate only
+  through REST APIs and events.
+- **Lightweight infrastructure** – MySQL 8 and Redis 7 only. Redis acts as both the OTP store and the event
+  bus (Streams with consumer groups, AOF persistence); no separate message broker is required.
+- **Encrypted events** – the OTP inside `otp.requested` is encrypted (`otp_enc`, key `OTP_EVENT_KEY`). The key
+  is generated on first start by `otp-key-init` and mounted only into the OTP and notification services, so
+  the stream, the AOF file and dead letters never contain a plain code.
+- **Resilient delivery** – failed emails are retried every 15 seconds. After 5 attempts, or immediately for
+  non-retryable errors (invalid payload, rejected address), the event is moved to `events:dead:<type>` with
+  the error. OTP emails whose code has already expired are discarded.
+- **Privacy in the client** – the token is kept in `sessionStorage`, and transaction IDs and filters never
+  appear in the URL. Amounts are hidden by default.
 
-Load and concurrency tests (`tests/load/`, results and analysis in `docs/reports/LOAD_TEST_REPORT.md`). Start the
-stack in load-test mode, `docker compose -f docker-compose.yml -f docker-compose.loadtest.yml up -d --build`, then with
-the same two `-f` files and `--profile loadtest run --rm loadtest`: `python lt_data.py seed` (once), `pytest -v`
-(race tests) or `sh run_level.sh medium 150 10 3m` (one load level, writes `docs/reports/medium/`). Load-test mode
-exposes the OTPs and lifts the rate limits: never use it for a demo.
+Service ownership and call relationships are documented in [docs/design/services.md](docs/design/services.md).
+
+## Technology Stack
+| Layer | Technologies |
+|---|---|
+| Backend | Python, FastAPI, SQLAlchemy 2, Alembic, Pydantic, PyJWT, bcrypt, httpx |
+| Frontend | React 18, Vite, Tailwind CSS, TanStack Query, served by nginx |
+| Data | MySQL 8.4, Redis 7 (key-value store and Streams) |
+| Infrastructure | Docker, Docker Compose, Adminer |
+| Testing | pytest, fakeredis, Locust |
+
+## Repository Structure
+```text
+.
+├── backend/
+│   ├── gateway/            # API gateway
+│   ├── services/           # user, tuition, payment, otp, notification (each with app/ and tests/)
+│   ├── shared/             # JWT/bcrypt, DB helpers, Redis client, Redis Streams event bus
+│   ├── infra/              # container entrypoint, MySQL init script (one database + user per service)
+│   └── scripts/            # seed.py (demo data), race_demo.py (concurrency demo)
+├── frontend/               # React + Vite client
+├── docs/                   # API reference, OpenAPI specs, design notes, diagrams, reports
+├── tests/load/             # load and concurrency test suite
+├── docker-compose.yml          # full stack
+├── docker-compose.demo.yml     # race-condition demo overlay
+└── docker-compose.loadtest.yml # load-test overlay
+```
+
+## Getting Started
+
+### Prerequisites
+| Tool | Version | Required for |
+|---|---|---|
+| Docker Desktop | latest | Running the full stack |
+| Python | 3.12+ | Local virtual environment (unit tests, IDE support) |
+| Node.js | 18+ | Running the frontend outside Docker (optional) |
+
+### 1. Clone the repository
+```bash
+git clone https://github.com/JamesJoys-vie/SOA-Midterm---iBanking-subsystem.git
+cd SOA-Midterm---iBanking-subsystem
+```
+
+### 2. Set up the Python virtual environment
+The services run inside Docker, so this step is not required to start the application. It is needed to run
+the unit tests locally and to enable IDE code completion. The `.venv/` folder is excluded from Git.
+
+**Windows (PowerShell)**
+```powershell
+py -3 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+pip install -r backend/requirements.txt pytest fakeredis
+```
+
+> If PowerShell blocks `Activate.ps1`, allow local scripts for the current user and activate again:
+> ```powershell
+> Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+> ```
+
+**macOS / Linux**
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install -r backend/requirements.txt pytest fakeredis
+```
+
+Run `deactivate` to leave the environment. In VS Code, select the `.venv` interpreter through
+**Python: Select Interpreter**.
+
+### 3. Configure the environment
+```powershell
+Copy-Item .env.example .env     # Windows
+```
+```bash
+cp .env.example .env            # macOS / Linux
+```
+Review the values in `.env` before starting; see [Configuration](#configuration).
+
+### 4. Start the stack
+```bash
+docker compose up -d --build
+```
+This builds all images, starts every service and seeds the demo data.
+
+### 5. Access the application
+| Service | URL |
+|---|---|
+| Web application | http://localhost:8080 |
+| Adminer (database UI) | http://localhost:8081 |
+| MySQL (host access) | `127.0.0.1:3307` |
+
+**Demo account:** username `alice`, password `Password123!`. Use student ID `52100001` to make a test payment.
+
+Until SMTP is configured, emails (including OTP codes) are written to the notification service log:
+```bash
+docker compose logs notification-service
+```
+To inspect undeliverable events:
+```bash
+docker compose exec redis redis-cli XRANGE events:dead:otp.requested - +
+```
+
+### 6. Stop the stack
+```bash
+docker compose down        # stop and keep data
+docker compose down -v     # stop and delete all data
+```
+
+### Optional
+**Race-condition demo** (same account / same tuition). It enables an OTP test echo and must never be used on a
+real deployment.
+```bash
+docker compose -f docker-compose.yml -f docker-compose.demo.yml --profile demo run --rm race-demo all
+```
+
+**Frontend development server** on http://localhost:5173 (proxies `/api` to the gateway on port 8080):
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+## Configuration
+All settings are read from `.env` (template: `.env.example`).
+
+| Variable | Purpose |
+|---|---|
+| `MYSQL_ROOT_PASSWORD`, `USER_DB_PASSWORD`, `TUITION_DB_PASSWORD`, `PAYMENT_DB_PASSWORD` | Database credentials (one user per service) |
+| `MYSQL_HOST_PORT` | Host port for MySQL (default `3307`, bound to localhost) |
+| `WEB_HOST_PORT` | Host port for the web application (default `8080`) |
+| `JWT_SECRET`, `JWT_EXPIRE_MINUTES` | Token signing key and lifetime |
+| `OTP_TTL_SECONDS`, `RESERVATION_TTL_SECONDS` | OTP and tuition-hold lifetimes |
+| `PAYMENT_WORKERS` | Number of payment service processes (default `4`) |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` | Outgoing email (Mailtrap or Gmail App Password). Leave `SMTP_USER` empty to log emails instead |
+
+## Testing
+
+### Unit tests
+With the virtual environment active, run the tests from a service folder, for example:
+```bash
+cd backend/services/payment_service
+python -m pytest -q tests
+```
+The OTP and notification service tests require a real Redis instance (database 15, flushed on each run).
+Run them inside the Compose network using the command documented at the top of
+`otp_service/tests/test_otp_store.py` and `notification_service/tests/conftest.py`.
+
+### Load and concurrency tests
+The suite in `tests/load/` uses Locust, pytest race tests and an invariant checker. Results and analysis are
+published in [docs/reports/LOAD_TEST_REPORT.md](docs/reports/LOAD_TEST_REPORT.md).
+
+> **Warning:** load-test mode exposes OTPs and lifts rate limits. Do not use it for demonstrations.
+
+1. Start the stack in load-test mode:
+   ```bash
+   docker compose -f docker-compose.yml -f docker-compose.loadtest.yml up -d --build
+   ```
+2. Run the test container with the same two `-f` files plus `--profile loadtest run --rm loadtest`, followed
+   by one of:
+
+   | Command | Purpose |
+   |---|---|
+   | `python lt_data.py seed` | Seed load-test data (run once) |
+   | `pytest -v` | Race-condition tests |
+   | `sh run_level.sh medium 150 10 3m` | Run one load level (writes to `docs/reports/medium/`) |
+
+## Documentation
+| Document | Description |
+|---|---|
+| [docs/api/endpoints.md](docs/api/endpoints.md) | REST API reference: public and internal endpoints, events |
+| [docs/api/openapi/](docs/api/openapi/) | OpenAPI specifications |
+| [docs/design/services.md](docs/design/services.md) | Service responsibilities and data ownership |
+| [docs/diagrams/](docs/diagrams/) | Architecture, class, ERD and use-case diagrams |
+| [docs/reports/LOAD_TEST_REPORT.md](docs/reports/LOAD_TEST_REPORT.md) | Load and concurrency test results |
+
+## Team and Contributions
+| Student ID | Name | Contributions |
+|---|---|---|
+| 524H0086 | Tran Hong Nhat Duy | Planning documents (API reference, OpenAPI, diagrams, wireframes); OTP service; notification service; frontend (foundation, payment flow, OTP modal, Home and History pages); load and concurrency tests |
+| 524H0087 | Nguyen Duc Hieu | User service; tuition service; demo data seeding (`seed.py`) |
+| 524H0081 | Phan Huy Binh | API gateway; payment service (saga, idempotency, outbox relay, expiry job, Alembic migration); Docker Compose setup; race-condition demo |
+
+All components listed above are complete and covered by tests.
